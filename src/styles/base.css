@@ -1,0 +1,243 @@
+/* ===========================================================================
+   基础样式 · 浓墨古书
+   =========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+html {
+  font-family: var(--font-ui);
+  font-size: 100%;
+  line-height: var(--lead-body);
+  color: var(--ink);
+  /* 异形窗：窗口矩形，但 html/body 透明，四周露出桌面；
+     真正的「一卷和纸」由 App.css 的 .makimono 裁出。 */
+  background: transparent;
+  /* 全站只有浅色：原生控件（下拉列表、滚动条）也钉死在浅色 */
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  overflow: hidden; /* 桌面应用：滚动只发生在内部面板 */
+  background: transparent;
+}
+
+/* 关掉桌面端最碍眼的两个浏览器默认行为 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  /* 按下即时反馈：不靠 hover 变色，指针一按就有回执 */
+  transition: transform var(--dur-1) var(--ease);
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+ol,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ol,
+ul {
+  list-style: none;
+}
+
+/* ------------------------------------------------------------------ 字体分工 */
+
+/* 日语正文。行高 1.9：汉字与假名混排需要比中文更松的呼吸。 */
+.jp {
+  font-family: var(--font-jp);
+  font-size: var(--fs-md);
+  line-height: var(--lead-jp);
+  letter-spacing: var(--track-jp);
+  font-feature-settings: "palt" 0; /* 明朝体不做比例间距，等宽假名更好认 */
+}
+
+/* 假名注音：挂在 <ruby> 的 <rt> 上。
+   ruby-position 钉死 over——读音**永远压在汉字上方**，不会被 WebView 摆到基线旁。 */
+.jp ruby {
+  ruby-position: over;
+  ruby-align: center;
+}
+
+.jp rt {
+  font-family: var(--font-jp);
+  /* 单位必须带 em（见 tokens.css 的 --rt-scale）：无单位的数字对 font-size
+     是非法值，整条会被丢掉，注音就会退回 UA 的 smaller，大得跟正文一样。 */
+  font-size: var(--rt-scale);
+  font-weight: 400;
+  color: var(--rt-color);
+  letter-spacing: 0.04em;
+  /* 注音不参与行高计算，否则行距会被撑开 */
+  line-height: 1;
+  user-select: none;
+}
+
+/* 注音关掉时**不是删掉 rt、而是把它藏起来**（Segments 的 data-off）。
+   visibility 不留痕迹地保住两件事：注音的**行高**与**字宽**。
+   于是切换注音开关时，正文既不会重排、也不会上下跳。 */
+.jp rt[data-off] {
+  visibility: hidden;
+}
+
+/* rt 藏在别的容器里（词表）时，同一条契约照样生效 */
+rt[data-off] {
+  visibility: hidden;
+}
+
+/* 数字、课次、代码 */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 花边圆（Seal.tsx）。尺寸交给外面那层容器，自己撑满——
+   同一枚形状在目次圆环、窗口按钮、朱印圆钮上都能用。 */
+.seal-ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ 层级 */
+
+/* 小字标签 */
+.t-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------ 装帧 */
+
+/* 題簽：古书贴在上面的细边小签。栏头、节名、词表头统一用它。
+   金边变体用于品牌等「装帧性」更强的位置。 */
+.slip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.05em 0.5em;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: var(--track-slip);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.slip--gold {
+  border-color: var(--gold);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--gold-soft);
+}
+
+/* ------------------------------------------------------------------ 动效 */
+
+/* 句子 / 词条逐行入场：只动 opacity + 一点点位移 */
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 面板内容「贴上纸面」 */
+@keyframes soft-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ 交互 */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+  /* 和纸上补一圈浅色光晕，焦点环不糊 */
+  box-shadow: 0 0 0 4px var(--paper-3);
+}
+
+/* 指针设备才做按下缩放：触摸端有自己的按下态，叠加会显得在跳。 */
+@media (hover: hover) {
+  button:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+}
+
+/* ------------------------------------------------------------------ 滚动 */
+
+/* 全站不收滚动条：横的、竖的都不要。滚动本身照旧（滚轮 / 触控板 / 键盘 /
+   拖选后自动滚动），面板下沿留一道渐变作为「下面还有」的提示。
+
+   配套的两点：
+   1. overflow-x 一律 hidden——否则某个面板内容宽一点点就会冒出一条横向滚动条。
+   2. 不留 scrollbar-gutter：没有条可占位，内容宽度也就不会随内容高度抖动。 */
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  /* 滚动到边界时不要连锁滚动父级 */
+  overscroll-behavior: contain;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* ------------------------------------------------------------------ 无障碍 */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* 保留透明度变化（仍然传达状态），去掉位移与弹性。 */
+    transition-duration: 160ms !important;
+    transition-property: opacity, background-color, border-color, color !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,0 +1,33 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+*.tsbuildinfo
+
+# 本地运行时资源（体积大，不入库）
+VOICEVOX/
+
+# 设计稿 / 临时图片
+1.png
+2.png
+new_design.png
+image.png
+
+# Python
+__pycache__/
+*.py[cod]
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 日志 / 环境变量
+*.log
+.env
+.env.local
+.env.*.local

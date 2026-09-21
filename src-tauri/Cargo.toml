@@ -1,0 +1,37 @@
+[package]
+name = "bingoreader"
+version = "0.1.0"
+description = "把《新版中日交流标准日本语》初级上下册变成能点着听、能随手查词的读物"
+authors = ["bingoyes"]
+edition = "2021"
+
+[lib]
+# `_lib` 后缀：Windows 上 bin 与 lib 同名会冲突（rust-lang/cargo#8519）。
+name = "bingoreader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 朗读转发：本机 VOICEVOX 是 HTTP 服务。rustls 而不是 native-tls，
+# 省掉 Windows 上的 OpenSSL 依赖（与主项目同一套选型）。
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+# 合成出来的 wav 要过 IPC 给前端播出，base64 最省事（短句的 wav 很小）。
+base64 = "0.22"
+# 只用 `time`：拉起随包引擎后要异步轮询等它 ready，不能在 async 命令里 sleep 阻塞。
+tokio = { version = "1", default-features = false, features = ["time"] }
+
+# 这个 app 不引 whisper / cpal / vad-rs，也不需要 .cargo/config.toml 里那套
+# CUDA 环境变量——首编只有 Tauri 那几个 crate，几分钟就好。
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

@@ -1,0 +1,826 @@
+/* ===========================================================================
+   应用外壳 · 和纸古卷（巻物）异形窗
+
+   窗口本身是矩形（Tauri 已开 transparent / 关系统阴影），「一卷摊开的和纸」
+   由下面这几块拼出来，卷面之外的像素全部透明：
+
+     .makimono__roller   左端纸卷：纸就是从这里摊开的（卷口 + 卷尾都是纸，不是木轴）。
+                         这一块**不是画出来的，是从 2.png 上整块抠下来的贴图**
+                         （public/roller.png，见 scripts/trace_roller.py）
+     .makimono__sheet    卷面：一整幅和纸。轮廓**不是手写的**，是从 2.png
+                         抠出来的 mask（public/edge-sheet.png，见 trace_edges.py）
+       .makimono__rim    撕裂口露出来的旧纸色——**边缘的书质感**就在这几层里
+       .makimono__fibre  断口的纤维（旧纸 → 纸面之间的那一档）
+       .makimono__face   纸面本体（内缩几像素，所以外围留下一条手撕的毛边）
+       .app              版心：天头 + 扉页 · 课文 · 生词页
+     .frag--unit         左下纸片：単元選択
+     .frag--tools        右下纸片：音色 + 四枚朱印圆钮
+
+   三栏之间**没有分隔线**：2.png 里这三栏是同一幅纸折出来的，
+   缝上是一道 2px 的折缝 + 两侧化开的软影（--fold / --fold-soft）。
+   压痕画在滑动的那一页边缘上，对面那半道影由 .reader 补（见「中缝」一节）。
+
+   坐标全部取自 2.png 的像素测量（1672×941）：
+     卷面（手撕轮廓）x 6.2% .. 93%     y 7.4% .. 84.2%
+     卷筒（贴图包围盒）x 2.69% .. 6.4%  y 5.42% .. 91.4%
+     左下纸片          x 6.76% .. 27.3%  y 91.2% .. 97.9%
+     右下纸片          x 71.7% .. 100%   y 85.5% .. 98.7%
+   撕裂幅度刻意压在 0.6% 窗高以内——「边缘不要太花哨」，是手撕纸，不是碎冰。
+   =========================================================================== */
+
+:root {
+  /* 版心四边（百分比）。卷面的**轮廓不在这里**——它是一张从 2.png 抠出来的
+     mask（public/edge-sheet.png，见 scripts/trace_edges.py），跟这四个数无关。
+     这四个数只管「内容躲开撕口多少」，取的是卷面轮廓在四边上的最内极限。 */
+  --sheet-r: 7.8%;
+  --sheet-t: 7.6%;
+  --sheet-b: 15.4%;
+  /* 版心的左边界比撕口再让进一档：纸卷与扉页之间留一条**纸边**
+     （2.png 里那道几十像素的空白）。少了它，扉页就直接贴着纸卷，
+     左边那条手撕的毛边也整条看不见了。 */
+  --app-l: 7.2%;
+
+  /* 卷筒与两块纸片的**位置 / 大小**。三层东西要用同一组数：
+     本体（.makimono__roller、.frag--*）和**投影剪影**（.makimono::before 的
+     mask 层）。提到这里当令牌，改一处三处一起动——不然影子会和纸差半个像素，
+     纸边上就会露出一条脏边。 */
+  --roller-x: 2.691%;
+  --roller-y: 5.420%;
+  --roller-w: 3.708%;
+  --roller-h: 85.972%;
+  --unit-x: 6.758%;
+  --unit-y: 91.180%;
+  --unit-w: 20.574%;
+  --unit-h: 6.695%;
+  --tools-x: 71.710%;
+  --tools-y: 85.547%;
+  --tools-w: 28.289%;
+  --tools-h: 13.178%;
+}
+
+/* ---------------------------------------------------------------- 整卷
+   卷面、卷筒、纸片各自独立成块。 */
+.makimono {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  /* 容器本身不透明区为零：不要在这里收事件，免得点「透明的水面」也有反应 */
+  pointer-events: none;
+  animation: scroll-in 760ms var(--ease) both;
+}
+
+/* 投影：**一层静态的剪影**，不是挂在 .makimono 上的 filter。
+
+   以前写法是 `filter: drop-shadow(...)` 直接挂在 .makimono 上——影子跟着整棵子树
+   的 alpha 走，形状是对的，但代价是：**只要子树里有一个像素在动，整窗就要重新
+   过滤一遍**（两层 drop-shadow ＝ 两次全窗模糊 + 一次整层重画）。点「展开目次」
+   时两栏要滑 460ms，于是每一帧都在重算这个——实测帧时间从 17ms 涨到 45ms，
+   肉眼就是「抖」。剪影本身**全程不动**（两栏滑的是纸上的内容，动不到轮廓），
+   所以把这层影子拆出来：同一个轮廓、同样的两道 drop-shadow，
+   但里面没有任何会动的东西，浏览器只算一次，之后每帧只是合成。
+
+   两件事要留意：
+   · 剪影＝四张 mask 的**并集**（卷面 + 卷筒 + 两块纸片）。四个孩子各自定位、
+     各自裁边，坐标与本体共用同一组令牌，所以影子严丝合缝地贴在本体下面——
+     本体是不透明的，这一层自己永远看不见，看得见的只有它投出来的影子。
+     （四张 mask 不能塞进同一个元素：mask-position 的百分比算的是「剩余空间」
+     的百分比，不是容器的百分比，纸片会跑位。分开定位才是容器的百分比。）
+   · **filter 必须挂在外层**：同一个元素上先过滤、后裁切，影子会被 mask 一起
+     裁掉（纸上就只剩剪影自己，一像素影子都没有）。挂在父层，父层看到的是
+     孩子**已经裁好**的剪影，影子才落得到纸的外面。 */
+.makimono__shadow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 20px 30px rgb(18 12 5 / 0.44))
+    drop-shadow(0 2px 5px rgb(18 12 5 / 0.26));
+}
+
+.makimono__shadow > i {
+  position: absolute;
+  /* 万一有半个像素没被本体盖住，露出来的也是纸色，不是黑影 */
+  background-color: var(--paper-4);
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+}
+
+.makimono__shadow-sheet {
+  inset: 0;
+  mask-image: url("/edge-sheet.png");
+}
+
+.makimono__shadow-roller {
+  left: var(--roller-x);
+  top: var(--roller-y);
+  width: var(--roller-w);
+  height: var(--roller-h);
+  mask-image: url("/roller.png");
+}
+
+.makimono__shadow-unit {
+  left: var(--unit-x);
+  top: var(--unit-y);
+  width: var(--unit-w);
+  height: var(--unit-h);
+  mask-image: url("/edge-unit.png");
+}
+
+.makimono__shadow-tools {
+  left: var(--tools-x);
+  top: var(--tools-y);
+  width: var(--tools-w);
+  height: var(--tools-h);
+  mask-image: url("/edge-tools.png");
+}
+
+/* 入场：像一卷纸被轻轻摊开，而不是一个窗口弹出来 */
+@keyframes scroll-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------- 卷面
+   手撕轮廓只画一次（.makimono__sheet 的 mask），里面两块纸：
+   外圈是撕裂口露出的旧纸，内圈才是正文用的纸面。 */
+.makimono__sheet {
+  position: absolute;
+  inset: 0;
+  /* 卷面在纸卷**之上**：纸卷的右半边要压进纸缝里，而不是浮在纸前面 */
+  z-index: 2;
+  /* 轮廓取自 2.png（1672×941 那张 mask 满窗铺开，所以是 1:1 的复刻，
+     不是手写的多边形）。mask 用带 alpha 的 PNG——灰度图会被当成全不透明。 */
+  mask-image: url("/edge-sheet.png");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+
+/* 撕裂口：三层叠出「断口旧纸 → 纤维 → 纸面」的过渡。
+   只有两层的话边缘是一条硬边，看着像被刀切的；三层才像撕出来的。
+   上缘受光、下缘更旧——手撕的断面本来就是一边吃光、一边积灰。 */
+.makimono__rim {
+  position: absolute;
+  inset: 0;
+  background-color: var(--paper-4);
+  background-image:
+    /* 和纸贴图：断口的毛边是**真纤维**，不是一道匀色。
+       这张图放得比纸卷小（140px）——同一条裂口，近看应当是更密的丝。 */
+    url("/washi.png"),
+    /* 竖向的断口纤维：极疏的亮痕，只在近处看得出是纸的毛边 */
+    repeating-linear-gradient(96deg, rgb(255 250 238 / 0.2) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, var(--rim-hi) 0, transparent 20%, transparent 58%, var(--rim) 100%);
+  background-size: 260px 260px, auto, auto;
+  background-blend-mode: multiply, normal, normal;
+}
+
+/* 纤维层：比卷面内缩一点点，夹在断口与纸面之间。同样带一层丝。 */
+.makimono__fibre {
+  position: absolute;
+  inset: 3px;
+  mask-image: url("/edge-sheet.png");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  background-color: var(--paper-3);
+  background-image: url("/washi.png");
+  background-size: 200px 200px;
+  background-blend-mode: multiply;
+}
+
+/* 纸面本体：再往里让几像素，于是整条撕裂边都留出一道毛边。
+   纸肌（.paper-bg）挂在这一层，不挂在卷面上——卷面已经裁过边了。 */
+.makimono__face {
+  position: absolute;
+  inset: 5px 6px 6px 5px;
+  mask-image: url("/edge-sheet.png");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  background-color: var(--paper);
+  /* 纸上的旧画：正文栏右侧一团远山、几粒樱瓣，加一道上亮下陈的整体渐变。
+     都是**纸的颜色**，不是内容——所以极淡，远看只是「这张纸有点旧」。 */
+  background-image:
+    radial-gradient(24% 14% at 68% 60%, rgb(122 118 104 / 0.11), transparent 72%),
+    radial-gradient(20% 11% at 76% 69%, rgb(104 104 96 / 0.1), transparent 74%),
+    radial-gradient(17% 9% at 62% 74%, rgb(122 118 104 / 0.08), transparent 76%),
+    radial-gradient(circle 6px at 71% 30%, rgb(200 130 138 / 0.2), transparent 100%),
+    radial-gradient(circle 4px at 79% 45%, rgb(200 130 138 / 0.16), transparent 100%),
+    radial-gradient(circle 3px at 64% 52%, rgb(200 130 138 / 0.13), transparent 100%),
+    linear-gradient(
+      180deg,
+      rgb(255 252 244 / 0.42) 0,
+      transparent 16%,
+      transparent 74%,
+      rgb(120 96 58 / 0.06) 100%
+    );
+}
+
+/* 书缝：纸卷与扉页之间那一条纸上，压一道柔和的暗影。
+   纸卷的右半边藏在卷面底下，所以这道缝不能由纸卷自己投——
+   它得画在纸面上（卷面之内、版心之外的那一窄条里）。 */
+.makimono__face::before {
+  content: "";
+  position: absolute;
+  left: 5.8%;
+  top: 0;
+  bottom: 0;
+  width: 2.2%;
+  background: linear-gradient(
+    to right,
+    rgb(58 44 24 / 0.2) 0,
+    rgb(58 44 24 / 0.07) 38%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- 卷筒
+   2.png 里左边的这一卷**不是木轴**——它就是纸本身：纸从这一卷上摊开。
+
+   这一块是**整块从 2.png 上搬过来的**（public/roller.png，见 scripts/trace_roller.py）：
+   RGB 是 2.png 的原像素，alpha 是抠出来的剪影。以前这里是手写的几道渐变——
+   一个 clip-path 当卷口、一圈 repeating-radial-gradient 当卷尾、两道 linear-gradient
+   当柱面受光。形制能对个大概，但和图上那一卷差得很远：
+   纸上的云斑折痕画不出来，卷口那一圈「卷进去的纸口」不是斜切的色块，
+   卷尾是一卷**螺旋**而不是同心圆。1:1 只有搬像素这一条路。
+
+   位置与大小＝那张贴图在 2.png 上的包围盒（62×809 px，x 45..107 y 51..860），
+   换算成相对窗口的百分比。窗口整体按 2.png 的比例拉伸（卷面的 mask 也是这么铺的），
+   所以百分比就是图上量出来的百分比。
+
+   两个咬合点：
+   · 贴图右缘（6.4%）比卷面 mask 的左缘（6.22%）多出 3px。两张贴图在缝上叠一点，
+     卷面那条 1px 的抗锯齿边就由**卷筒自己的像素**补上，缝里不会漏出一条桌面。
+   · z-index 比卷面**低**：卷筒的右半边要压进纸缝里，而不是浮在纸前面。
+     （卷筒露出的一段是 2.69% .. 6.22%：上端宽、下端窄，锥度本身就在贴图里。） */
+.makimono__roller {
+  position: absolute;
+  left: var(--roller-x);
+  top: var(--roller-y);
+  width: var(--roller-w);
+  height: var(--roller-h);
+  z-index: 1;
+  /* 贴图自带 alpha（剪影），所以这里不能用 background-color 垫底。
+     no-repeat + 100% 100%：贴图与元素框严丝合缝，交给窗口去拉伸。 */
+  background: url("/roller.png") 0 0 / 100% 100% no-repeat;
+}
+
+/* ---------------------------------------------------------------- 版心
+   .app 只铺到「撕得最深的那一缺口」以内，所以正文永远不会被毛边切到。
+   天头横跨整幅卷面（只放最小 / 关闭），底下才是三栏。 */
+.makimono .app {
+  position: absolute;
+  inset: var(--sheet-t) var(--sheet-r) var(--sheet-b) var(--app-l);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  color: var(--ink);
+}
+
+.app__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0; /* 让子面板的滚动生效，而不是整卷滚 */
+
+  /* 这一条是**给版心量尺寸用的**：container-type: inline-size 让 .reader 能用
+     `100cqw` 问出「三栏一共多宽」——而它**在面板滑动的整段时间里都不变**。
+     版心于是可以按**最终**栏宽排版：栏在收窄，字却不用重排（见 ReaderView.css）。
+     没有它，正文会跟着 460ms 的宽度动画一格一格地断行——那就是「点展开按钮会抖」。 */
+  container-type: inline-size;
+
+  /* 两栏的**目标**宽度（开＝整幅，关＝0）：版心按这两个数算最终宽度。
+     注意它们跟着 data-* 立刻切换，**不参与动画**——这正是「字不抖」的原因。 */
+  --panel-l: 0px;
+  --panel-r: 0px;
+}
+
+.app__body[data-rail] {
+  --panel-l: var(--rail-w);
+}
+
+.app__body[data-vocab] {
+  --panel-r: var(--coach-w);
+}
+
+/* ---------------------------------------------------------------- 中缝 · 对面那半
+   两道中缝都是**折缝**：压痕画在滑动的那一页边缘（LessonRail / VocabPanel），
+   缝的另一半落在课文这一栏（ReaderView 的 .reader::before / ::after）。
+   可这一半只在对面那页**翻开时**才该在纸上——收起时那半道影没有来处。
+   所以由数据属性开门：面板的状态本来就在 prefs 里，App.tsx 顺手打在
+   .app__body 上，这里只负责把影子的 opacity 打开。
+   （淡入淡出时长 = 面板滑动的时长，两者一起走，不会各走各的。） */
+.app__body[data-rail] .reader::before,
+.app__body[data-vocab] .reader::after {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- 常驻页签
+   这是**面板收起后**才浮出来的那一枚：面板展开时它藏在面板底下（透明、不可点），
+   面板滑走后才淡入。「收起」的入口永远在面板里（目次页脚 / 生词页脚），
+   页签只负责把面板**拉回来**——滑动的面板不能没有抓手。
+
+   **垂直居中不能用 transform。** base.css 有一条全站按下态
+   `button:active:not(:disabled) { transform: scale(.96) }`，它的权重比
+   `.edge-tab` 高：一按下去就把 `translateY(-50%)` 顶掉，页签当场往**下坠半个身位**
+   （实测 y 399→444、高 88→84），指针正好落到钮外——mouseup 不在钮上，click 根本
+   不发，于是「点展开按钮有时上下闪一下、还点不开」。
+   改用 top/bottom + margin:auto 居中：按下的缩放照旧有（以中心为原点，位置不动），
+   谁来改 transform 都推不走它。 */
+.edge-tab {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin-block: auto;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--ink-2);
+  background: var(--paper-2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--dur-2) var(--ease),
+    color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
+}
+
+.edge-tab[data-shown] {
+  opacity: 1;
+  pointer-events: auto;
+  /* 比面板慢一步起，等纸滑开了再浮出来 */
+  transition-delay: 140ms, 0ms, 0ms;
+}
+
+.edge-tab:hover {
+  color: var(--ink);
+  background: var(--paper-3);
+}
+
+/* 页签的按下反馈**只换颜色，不缩**。
+   全站那条 `button:active { transform: scale(.96) }` 连命中区一起缩：页签窄，
+   按下时上/下沿各让进 1~2px，点得靠边就会「按下去、抬起来的时候已经不在钮上」。
+   位置绝不移动只是底线，命中区一寸不让才是本条。 */
+@media (hover: hover) {
+  .edge-tab:active:not(:disabled) {
+    transform: none;
+    background: var(--paper-4);
+  }
+}
+
+/* 左页签：目次。贴在卷面左缘（＝木轴的缝）。 */
+.edge-tab--rail {
+  left: 0;
+  width: 2rem;
+  height: 5.5rem;
+  flex-direction: column;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  box-shadow: 1px 0 0 var(--rule), 3px 2px 8px -4px rgb(30 20 8 / 0.4);
+}
+
+/* 右页签：生词。多一枚词数角标，所以更高一点。 */
+.edge-tab--vocab {
+  right: 0;
+  width: 2rem;
+  height: 7rem;
+  flex-direction: column;
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+  box-shadow: -1px 0 0 var(--rule), -3px 2px 8px -4px rgb(30 20 8 / 0.4);
+}
+
+/* 页签上的字：竖排。日式页签本来就是把字竖着写的，
+   竖排也顺手解决了「窄页签塞不下两个汉字」的问题。 */
+.edge-tab__word {
+  writing-mode: vertical-rl;
+  font-family: var(--font-jp);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  color: var(--ink-2);
+}
+
+.edge-tab__count {
+  font-size: 0.625rem;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+
+/* ---------------------------------------------------------------- 纸片
+   卷面下方三枚飘着的碎纸。它们和卷面之间是**透明的水面**，所以必须自己
+   成块、自己裁边、自己投影（投影在 .makimono 上，一起算）。 */
+.frag {
+  position: absolute;
+  z-index: var(--z-frag);
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+  /* 纸片是卷面最外一层旧纸：比版心暗一档，下缘再压一点更旧的色 */
+  background-color: var(--paper-3);
+  background-image:
+    radial-gradient(120% 90% at 22% 0%, rgb(255 250 238 / 0.34), transparent 62%),
+    linear-gradient(to bottom, transparent 42%, var(--paper-4) 100%);
+}
+
+/* 左下纸片：単元選択。位置与大小就是 2.png 上这块碎纸的**包围盒**
+   （trace_edges.py 量出来的 6.76% / 91.18% / 20.57% / 6.70%，令牌见 :root）——
+   元素框等于包围盒，mask 按 100% 铺开，轮廓才是 1:1 的。
+   两端各让出一截：纸片两头是撕出来的尖，箭头不能压在上面。 */
+.frag--unit {
+  left: var(--unit-x);
+  top: var(--unit-y);
+  width: var(--unit-w);
+  height: var(--unit-h);
+  mask-image: url("/edge-unit.png");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  justify-content: center;
+  /* 这块纸两头撕得很尖，可用宽度比包围盒窄一截，内缩要给足 */
+  padding: 0 11%;
+}
+
+/* 右下纸片：五枚圆钮（音色 + 四个开关）。位置与大小是 2.png 上这块碎纸的
+   **包围盒**（71.71% / 85.55% / 28.29% / 13.18%），轮廓照图抠出来。
+   钮都落在厚的那半边，左端留着那道撕尖。
+
+   **这一块不裁自己。** 音色的小笺要从纸片上方升起来，而 mask/clip-path 会把
+   整棵子树一起裁掉（弹层也一样）。所以轮廓画在 ::before 上：
+   纸片这层透明，纸的形状交给下面那张碎纸。 */
+.frag--tools {
+  left: var(--tools-x);
+  top: var(--tools-y);
+  width: var(--tools-w);
+  height: var(--tools-h);
+  background: none;
+  justify-content: flex-end;
+  padding: 0 3% 0 8%;
+  gap: 0.7rem;
+}
+
+.frag--tools::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  mask-image: url("/edge-tools.png");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  background-color: var(--paper-3);
+  background-image:
+    radial-gradient(120% 90% at 22% 0%, rgb(255 250 238 / 0.34), transparent 62%),
+    linear-gradient(to bottom, transparent 42%, var(--paper-4) 100%);
+}
+
+/* 纸片上的发丝缝：把「用什么声音读」和「怎么显示」分成两组 */
+.frag__seam {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 1.75rem;
+  background: var(--rule-2);
+}
+
+/* 左下纸片左端那朵小画：一朵淡朱的莲花压在墨灰的水痕上。
+   只是纸上的一个印子，不是控件——所以 pointer-events: none。 */
+.frag__marks {
+  position: absolute;
+  left: 3.5%;
+  top: 18%;
+  width: 9%;
+  height: 64%;
+  background-image:
+    radial-gradient(34% 46% at 50% 24%, var(--accent-wash) 0 58%, transparent 78%),
+    radial-gradient(34% 46% at 27% 56%, var(--accent-wash) 0 58%, transparent 78%),
+    radial-gradient(34% 46% at 73% 56%, var(--accent-wash) 0 58%, transparent 78%),
+    radial-gradient(72% 20% at 50% 84%, var(--wash) 0 58%, transparent 84%);
+  filter: blur(0.9px);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- 面板页脚
+   两栏（目次页 / 生词页）的**页脚是同一件东西**：都在纸的最下沿，都只放一枚「收起」。
+
+   以前不是：目次页的收起键在页脚（下），生词页的却在页头（上）——同一件事、
+   一上一下两个位置，还各自长了两套样式。现在统一到底部：**同高、同宽、同一颗图标、
+   同一套 hover**，两枚键于是落在同一条水平线上，左右对称地夹住课文这一栏。
+
+   两条纪律：
+   · **页脚上沿不画线**。收起键做的是「把这一页滑走」，它不是一个表头；
+     画了那条发丝线，页脚就成了表格的末行，纸也被切成两截。
+   · 页脚**不吃纸的高度**：两栏的滚动区各自让出 --panel-foot-h（见各自 CSS）。
+
+   位置：各贴自己那一栏**靠课文的一侧**（目次页在右端、生词页在左端），
+   两枚键镜像对称；页签仍钉在卷面外缘，收起后抓手就在外面那一条上。 */
+.panel-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+  height: var(--panel-foot-h);
+}
+
+.panel-foot__btn {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.panel-foot__btn:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.panel-foot__btn:active {
+  background: var(--paper-4);
+}
+
+/* ---------------------------------------------------------------- 単元選択 */
+
+.unit-step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.unit-step__btn {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--r-full);
+  color: var(--ink-2);
+  transition: color var(--dur-1) var(--ease);
+}
+
+.unit-step__btn:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.unit-step__btn:disabled {
+  color: var(--ink-3);
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 2.png 的字样是这组控件的**名字**（単元選択），不是当前值；
+   当前值缩成下面一行小字，位置感不丢，字号不抢。 */
+.unit-step__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  white-space: nowrap;
+}
+
+.unit-step__word {
+  font-family: var(--font-jp);
+  font-size: 0.8125rem;
+  line-height: 1.1;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+}
+
+.unit-step__now {
+  font-size: 0.625rem;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+
+.unit-step__now i {
+  font-style: normal;
+  margin: 0 0.22em;
+}
+
+/* ---------------------------------------------------------------- 音色（设置区）
+   音色是**和旁边四枚同形制的小钮**：平时只有一颗圆钮那么点地方。
+   点开才在上方升起一张小笺（.voice-menu）列音色，选完即收——
+   不再常驻一个下拉把自己摊在纸面上。 */
+
+.voice-tool {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+/* 小笺：贴在纸面上的一小片纸，向上展开。
+   音色可能很多（VOICEVOX 一装几十条），所以列表自己滚。 */
+.voice-menu {
+  position: absolute;
+  right: -0.35rem;
+  bottom: calc(100% + 0.5rem);
+  z-index: var(--z-frag);
+  width: 12.5rem;
+  padding: 0.45rem 0.3rem 0.35rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--r-sm);
+  background-color: var(--paper);
+  box-shadow: var(--shadow-page);
+  animation: voice-menu-in var(--dur-2) var(--ease);
+}
+
+@keyframes voice-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.voice-menu__head {
+  padding: 0 0.55rem 0.3rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+.voice-menu__empty {
+  padding: 0.2rem 0.55rem 0.35rem;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.voice-menu__list {
+  max-height: 12.5rem;
+  padding: 0;
+}
+
+.voice-menu__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3rem 0.55rem;
+  text-align: left;
+  border-radius: var(--r-xs);
+  color: var(--ink);
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.voice-menu__item:hover {
+  background: var(--paper-3);
+}
+
+.voice-menu__name {
+  min-width: 0;
+  font-size: 0.78125rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-menu__style {
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+/* 当前音色：**整行填朱** —— 印泥压满的一行，白字。
+   之前是「淡朱底 + 一道左线」，在一列灰字里根本挑不出来；
+   这一列是单选，选中项必须一眼看到，所以用最重的一档。
+   朱砂本来只标状态，「当前用哪个音色」正是状态。 */
+.voice-menu__item[data-current] {
+  background: var(--accent);
+  color: var(--seal-ink);
+  box-shadow: 0 1px 2px rgb(30 20 8 / 0.22);
+}
+
+.voice-menu__item[data-current] .voice-menu__name {
+  color: var(--seal-ink);
+  font-weight: 600;
+}
+
+/* 选中行后面那枚勾：把「风格」换成对勾——风格在选中项上已经不重要了 */
+.voice-menu__tick {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--seal-ink);
+  opacity: 0.92;
+}
+
+.voice-menu__item[data-current]:hover {
+  /* 选中项 hover 不再叠一层：朱砂已经很重，再叠会发脏 */
+  background: var(--accent);
+}
+
+/* ---------------------------------------------------------------- 五枚朱印圆钮
+   2.png 的形制：**花边朱印圆**（Seal.tsx），图标压在印里，名称写在印下。
+   关＝淡朱（只是印的轮廓）；开＝朱砂吃满 + 印底一层淡朱。
+   四颗钮的形状、大小、间距都对齐 2.png，标签沿用本项目原来的中文
+   （注音 / 中文 / 生词 / 目次）。 */
+
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 1.05vw, 1.15rem);
+  flex: 0 0 auto;
+}
+
+.tool {
+  display: grid;
+  justify-items: center;
+  gap: 0.24rem;
+  color: var(--ink-2);
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.tool__seal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--seal-w);
+  height: var(--seal-w);
+  color: var(--accent);
+  opacity: 0.5;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+/* 开＝印底先垫一层淡朱（压进花边圈里的圆），再让轮廓吃满 */
+.tool__seal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-full);
+  background: radial-gradient(circle closest-side at 50% 50%, var(--accent-soft) 0 82%, transparent 82%);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.tool__ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tool__glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.tool:hover .tool__seal {
+  opacity: 0.78;
+}
+
+.tool[data-on] .tool__seal {
+  opacity: 1;
+}
+
+.tool[data-on] .tool__seal::before {
+  opacity: 1;
+}
+
+.tool__label {
+  font-size: 0.72rem;
+  line-height: 1;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+  white-space: nowrap;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.tool[data-on] .tool__label {
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------- 窄窗
+   卷面本来就不宽，窗口一收，两页正文先让位——但版心不能挤到读不下去。
+   纸片上的控件同步缩一圈，免得在窄纸片上挤成一团。 */
+@media (max-width: 1240px) {
+  :root {
+    --rail-w: 14.5rem;
+    --coach-w: 15.5rem;
+    --measure: 32rem;
+    --seal-w: 1.875rem;
+  }
+
+  .frag--tools {
+    left: 63%;
+    width: 34.4%;
+    gap: 0.5rem;
+  }
+
+  .tool__label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+  }
+
+  .voice-menu {
+    width: 11rem;
+  }
+}

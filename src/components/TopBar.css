@@ -1,0 +1,30 @@
+/* 顶部条 · 卷面的天头
+
+   2.png 的卷面最上方是空的：左边不摆东西，右端并列两枚朱印（最小 / 关闭）。
+   所以这一条只负责「拖窗口」和「关窗口」两件事，高度压到 2.5rem，
+   把省下来的天头还给课文。
+
+   课名与音色都不在这里：
+     · 课名回到课文版心当标题（ReaderView 的 .reader__title）；
+     · 音色挪到卷面下方的设置区（App.css 的 .tool-voice）。
+   顶栏不再有任何一条「浅色长条」，也就没有需求 5 要删的那根白色进度条。 */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  flex: 0 0 auto;
+  height: var(--topbar-h);
+  /* 右边只留 10px：两颗印要贴住卷面最右上缘（2.png 的位置） */
+  padding: 0 10px 0 var(--sp-4);
+  z-index: var(--z-material);
+  background: var(--paper);
+}
+
+/* 可拖的空白。整条天头都是抓手，这颗只是把剩余宽度吃掉。 */
+.topbar__grip {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+}

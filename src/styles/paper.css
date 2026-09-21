@@ -1,0 +1,82 @@
+/* ===========================================================================
+   和纸肌
+
+   用法：给元素加 .paper-bg（整幅卷面）或 .paper-panel（两枚断片），
+   元素自己的 background-color 保持不动。贴图与纤维铺在 **::after 叠加层**上，
+   浓度由 --paper-alpha 一个令牌控制，不必重新生成 PNG。
+
+   两个要点：
+   1. `isolation: isolate` 让元素自成一个层叠上下文，::after 用 z-index:-1
+      就能稳稳地待在「自己的底色之上、内容之下」，不用给每个子元素提层级。
+   2. 贴图挂在**不滚动**的元素上。滚动容器里放叠加层会跟着内容滚，
+      所以正文区的滚动交给内层，纸肌留在不滚动的卷面上
+      （.makimono__sheet）。目次页与生词页自己不铺纸肌——卷面已经铺过了，
+      再铺一道会重。
+
+   两条铁律不变：
+   - 纸肌不参与交互状态（hover / active / focus 只改颜色与描边）。
+   - 文字区不叠纸肌。
+
+   纹理分两层：颗粒贴图（scripts/make_grain.py 生成）+ 细竖纤维（和纸簀目），
+   全部 multiply，浓度由 --paper-alpha 统一压住。
+   =========================================================================== */
+
+.paper-bg,
+.paper-panel {
+  position: relative;
+  isolation: isolate;
+}
+
+.paper-bg::after,
+.paper-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  /* 第一层：竖向簀目纤维；第二层：颗粒贴图 */
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.05) 0 1px,
+      transparent 1px 4px,
+      rgb(0 0 0 / 0.03) 4px 6px,
+      transparent 6px 11px
+    );
+  background-size: auto, 128px 128px;
+  background-repeat: repeat;
+  opacity: var(--paper-alpha);
+  mix-blend-mode: multiply;
+}
+
+.paper-bg::after {
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.05) 0 1px,
+      transparent 1px 4px,
+      rgb(0 0 0 / 0.03) 4px 6px,
+      transparent 6px 11px
+    ),
+    url("/grain-bg.png");
+}
+
+.paper-panel::after {
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.05) 0 1px,
+      transparent 1px 4px,
+      rgb(0 0 0 / 0.03) 4px 6px,
+      transparent 6px 11px
+    ),
+    url("/grain-panel.png");
+}
+
+/* 纸肌只归 `prefers-contrast: more` 管：高对比模式下纹理退场，字优先。 */
+@media (prefers-contrast: more) {
+  .paper-bg::after,
+  .paper-panel::after {
+    display: none;
+  }
+}

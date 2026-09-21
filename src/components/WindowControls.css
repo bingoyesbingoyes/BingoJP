@@ -1,0 +1,82 @@
+/* 最小 / 关闭 · 朱印风
+
+   2.png 的最右上缘并列着两枚小印：一枚「−」、一枚「×」。它们不是 macOS 的
+   红黄绿——是同一枚**花边朱印圆**（Seal.tsx 的 SealRing），落在纸上。
+
+   平时空心：只有朱线 + 朱字。hover / 聚焦才填满朱砂，字翻成和纸色。
+   视觉 26px，命中范围用负 inset 的伪元素撑到 36×36，间距 7px，不打架。 */
+
+.windots {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.windots__dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: var(--r-full);
+  color: var(--accent);
+  transition: transform var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+/* 花边圈：填满按钮，颜色跟着按钮的 currentColor 走 */
+.windots__ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.windots__glyph {
+  position: relative;
+  opacity: 0.85;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+/* hover 才填：填的是**印泥**，所以是压进花边圈里的一个实心圆（84% 半径），
+   不是把整个按钮涂成矩形。 */
+.windots__dot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-full);
+  background: radial-gradient(circle closest-side at 50% 50%, var(--accent) 0 84%, transparent 84%);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+/* 视觉 26px，命中范围撑到 36×36 */
+.windots__dot::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: var(--r-full);
+}
+
+.windots__dot:hover,
+.windots__dot:focus-visible {
+  color: var(--seal-ink);
+}
+
+.windots__dot:hover::before,
+.windots__dot:focus-visible::before {
+  opacity: 1;
+}
+
+.windots__dot:hover .windots__glyph,
+.windots__dot:focus-visible .windots__glyph {
+  opacity: 1;
+}
+
+/* 关闭：印泥压得更实一点，和「最小」拉开一档 */
+.windots__dot--close {
+  color: var(--accent);
+}
+
+.windots__dot--close .windots__glyph {
+  opacity: 1;
+}

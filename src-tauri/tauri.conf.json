@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BingoReader",
+  "version": "0.1.0",
+  "identifier": "com.bingoyes.bingoreader",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5275",
+    "beforeBuildCommand": "npx vite build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "BingoReader 読む・聴く",
+        "width": 1440,
+        "height": 960,
+        "minWidth": 1120,
+        "minHeight": 780,
+        "resizable": true,
+        "center": true,
+        "dragDropEnabled": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

@@ -1,0 +1,228 @@
+/* 生词页 · 卷面右栏
+
+   和目次页对称的一套：外层 .vocab 管「占多宽」，内层 .vocab__inner 管「滑到哪」。
+   两页一起滑，卷面就成了「摊开—收起」的卷物。
+
+   一行的排布纪律（这条是硬要求）：
+     读音（ruby）压在该汉字正上方 → 单词 → 中文靠最右。
+   「假名单独一列」的写法不要用：注音永远在单词上方，不在旁边。 */
+
+.vocab {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  width: 0;
+  overflow: hidden; /* 内层滑出去的部分靠这一层裁掉 */
+  z-index: var(--z-content);
+  transition: width var(--dur-3) var(--ease);
+}
+
+.vocab[data-open] {
+  width: var(--coach-w);
+}
+
+.vocab__inner {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: var(--coach-w);
+  height: 100%;
+  background-color: var(--paper-vocab);
+  /* 中缝（与课文那一栏之间）：与目次页同一道折缝，镜像过来——
+     压痕压在这一页的**左缘**。这一页是从折痕上**翻起来**的那一半，
+     所以缝内侧先有一道见光的亮、再落进影里；对面（课文那一栏）往下卷，
+     只有半道软影（见 App.css 的 data-vocab）。 */
+  background-image: linear-gradient(
+    to right,
+    var(--fold) 0 2px,
+    var(--fold-hi) 6px,
+    var(--fold-soft) 9px,
+    transparent 30px
+  );
+  transition: transform var(--dur-3) var(--ease);
+}
+
+.vocab:not([data-open]) .vocab__inner {
+  transform: translateX(100%);
+}
+
+/* ---------------------------------------------------------------- 头部
+   只剩标题：**收起键搬到页脚**（与目次页同一枚、同一位置）。
+   头下也不画线——那一横是「上面一条横」，页头不是表头。 */
+
+.vocab__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2) var(--sp-4);
+}
+
+.vocab__title {
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--paper-3);
+}
+
+/* ---------------------------------------------------------------- 页脚
+   与目次页**同一枚**「收起」（样式在 App.css 的 .panel-foot）。
+   这一页在右，键贴**左端**（靠课文那一侧），与目次页那枚镜像对称。 */
+
+.vocab__foot {
+  justify-content: flex-start;
+  padding: 0 var(--sp-3) 0 var(--sp-4);
+}
+
+/* ---------------------------------------------------------------- 词表
+   两列：左日语（读音以 ruby 压在汉字上方）／右中文。
+   行距压到最小，一屏尽量多塞几条。 */
+
+.vocab__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* 下沿留一档就够：再往下是页脚，收起键自己会撑开那一段空 */
+  padding: var(--sp-1) var(--sp-2) var(--sp-3);
+  /* 没有滚动条了，用下沿渐隐提示「下面还有」 */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sp-8)), transparent 100%);
+}
+
+/* 一行＝一个容器 + 两个按钮。不用按钮套按钮：朗读与「已记住」各有各的语义，
+   也让勾选能在 hover 时单独出现。逐行入场，前 24 行有错峰。 */
+.vrow {
+  position: relative; /* 「已记住」的删除线挂在它上面 */
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  width: 100%;
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  animation: line-in 420ms var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 14ms);
+}
+
+.vrow:hover {
+  background: var(--paper-3);
+}
+
+/* 播放中：淡朱底 + 停止图标，不再有进度条 */
+.vrow[data-playing] {
+  background: var(--accent-soft);
+}
+
+.vrow[data-pending] {
+  opacity: 0.55;
+}
+
+/* 朗读按钮：撑满整行，日语与中文仍旧一左一右 */
+.vrow__speak {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  color: inherit;
+  transition: transform var(--dur-1) var(--ease);
+}
+
+/* 勾选：平时藏着，hover / 聚焦 / 已记住时才现身。
+   视觉只有 22px，但用一层负 inset 的伪元素把可点范围撑到 30px。 */
+.vrow__mark {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: var(--r-xs);
+  color: var(--ink-3);
+  opacity: 0;
+  transition: transform var(--dur-1) var(--ease), opacity var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+}
+
+.vrow__mark::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+.vrow:hover .vrow__mark,
+.vrow__mark:focus-visible {
+  opacity: 1;
+}
+
+.vrow__mark:hover {
+  color: var(--ink-2);
+  background: var(--paper);
+}
+
+.vrow[data-memorized] .vrow__mark {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* 已记住：整行灰化，再横着划一条贯穿整行的删除线（不用 text-decoration——
+   那条线只画在文字上，长短随内容变，看着不像「这一行划掉了」）。 */
+.vrow[data-memorized] {
+  color: var(--ink-3);
+}
+
+.vrow[data-memorized] .vrow__ja,
+.vrow[data-memorized] .vrow__zh {
+  color: var(--ink-3);
+  opacity: 0.7;
+}
+
+.vrow[data-memorized]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 55%;
+  height: 1px;
+  background: var(--ink-3);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+/* 复合选择器为了压过 .jp。行高固定，注音开关切换时列表不抖——
+   rt 永远渲染（Segments 的 data-off 只是把字藏起来），行盒高度不变。 */
+.vrow .vrow__ja {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-base);
+  line-height: 1.55;
+  letter-spacing: var(--track-jp);
+}
+
+/* 注音本身：再点一次名，确保读音稳在**汉字上方**而不是基线旁。
+   有些 WebView 会把 rt 贴着基线摆，这里把 ruby 的位置钉死。 */
+.vrow__ja ruby {
+  ruby-position: over;
+  ruby-align: center;
+}
+
+/* 词表比正文更密，注音再收小半档 */
+.vrow__ja rt {
+  color: var(--ink-3);
+  font-size: var(--rt-scale-tight);
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+}
+
+.vrow__zh {
+  flex: 0 1 auto;
+  margin-left: auto;
+  text-align: right;
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}

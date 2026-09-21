@@ -1,0 +1,30 @@
+{
+  "name": "bingoreader",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "BingoReader：《新版中日交流标准日本语》初级上下册有声读物。逐句点读（本机 VOICEVOX）、每课生词表、可开关中文译文。",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "app": "tauri dev",
+    "app:build": "tauri build",
+    "data": "python scripts/extract_epub.py --write",
+    "check": "python scripts/check_data.py"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}
