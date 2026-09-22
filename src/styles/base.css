@@ -1,5 +1,5 @@
 /* ===========================================================================
-   基础样式 · 浓墨古书
+   基础样式 · 和纸古卷
    =========================================================================== */
 
 *,
@@ -20,8 +20,7 @@ html {
   font-size: 100%;
   line-height: var(--lead-body);
   color: var(--ink);
-  /* 异形窗：窗口矩形，但 html/body 透明，四周露出桌面；
-     真正的「一卷和纸」由 App.css 的 .makimono 裁出。 */
+  /* 异形窗：窗口矩形，但 html/body 透明，真正的「一卷和纸」由 App.css 裁出。 */
   background: transparent;
   /* 全站只有浅色：原生控件（下拉列表、滚动条）也钉死在浅色 */
   color-scheme: light;
@@ -75,13 +74,19 @@ ul {
 
 /* ------------------------------------------------------------------ 字体分工 */
 
-/* 日语正文。行高 1.9：汉字与假名混排需要比中文更松的呼吸。 */
+/* 日语正文。汉字与假名混排需要比中文更松的呼吸。 */
 .jp {
   font-family: var(--font-jp);
-  font-size: var(--fs-md);
+  font-size: var(--fs-jp);
   line-height: var(--lead-jp);
-  letter-spacing: var(--track-jp);
-  font-feature-settings: "palt" 0; /* 明朝体不做比例间距，等宽假名更好认 */
+  letter-spacing: var(--track-body);
+  /* "palt" 0：明朝体不做比例间距，等宽假名更好认。
+     "halt" 1：**全角标点走半角字宽**——「，」「。」「：」的墨本来就画在字框左侧，
+     后半格是空的。行中一个逗号就吃掉一格空档（26px 字号下 13px），
+     一句话里两三个标点，读起来就散了（用户报「字距太大」）。
+     halt 只换标点的字宽，假名与汉字的字宽一个不动；行首行的挤压（text-spacing-trim）
+     管不到行中，所以只能在这里收。 */
+  font-feature-settings: "palt" 0, "halt" 1;
 }
 
 /* 假名注音：挂在 <ruby> 的 <rt> 上。
@@ -116,53 +121,43 @@ rt[data-off] {
   visibility: hidden;
 }
 
+/* 全角空格（U+3000）：正文里收窄到 --space-ja（理由见 tokens.css）。
+   只作用在 Segments.tsx 的 JaText 单独包出来的那一层上。
+   注意 `word-spacing` 干不了这件事：Chrome 不把 U+3000 当 word-separator 算。 */
+.sp-ja {
+  font-size: var(--space-ja);
+}
+
 /* 数字、课次、代码 */
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-/* 花边圆（Seal.tsx）。尺寸交给外面那层容器，自己撑满——
-   同一枚形状在目次圆环、窗口按钮、朱印圆钮上都能用。 */
+/* 花边圆（Seal.tsx）。尺寸交给外面那层容器，自己撑满——同一枚形状在朱印圆钮、
+   目次圆环上都用得上。 */
 .seal-ring {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-/* ------------------------------------------------------------------ 层级 */
-
-/* 小字标签 */
-.t-label {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--ink-2);
-  text-transform: uppercase;
-}
-
 /* ------------------------------------------------------------------ 装帧 */
 
-/* 題簽：古书贴在上面的细边小签。栏头、节名、词表头统一用它。
-   金边变体用于品牌等「装帧性」更强的位置。 */
+/* 題簽：古书贴在上面的细边小签——**一道细茶线围起来的圆角小牌**
+   （见「第1単元・第1課」那枚）。圆角 8px、线 1px 的枯茶、底近乎透明，字距松开。 */
 .slip {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  padding: 0.05em 0.5em;
+  padding: 0.16em 0.62em 0.2em;
   border: 1px solid var(--rule-2);
-  border-radius: var(--r-xs);
-  font-size: var(--fs-xs);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-micro);
   font-weight: 600;
-  letter-spacing: var(--track-slip);
-  color: var(--ink-2);
+  letter-spacing: 0.1em;
+  color: var(--wash-strong);
   white-space: nowrap;
-}
-
-.slip--gold {
-  border-color: var(--gold);
-  color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--gold-soft);
 }
 
 /* ------------------------------------------------------------------ 动效 */
@@ -239,5 +234,17 @@ rt[data-off] {
     transition-property: opacity, background-color, border-color, color !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+/* 高对比：纸肌与笔扫退场，字与线优先 */
+@media (prefers-contrast: more) {
+  :root {
+    --paper-alpha: 0;
+    --mottle-alpha: 0;
+    --wash: rgb(124 106 89 / 0.16);
+    --accent-wash: rgb(156 64 56 / 0.18);
+    --rule: rgb(124 106 89 / 0.4);
+    --rule-2: rgb(124 106 89 / 0.64);
   }
 }

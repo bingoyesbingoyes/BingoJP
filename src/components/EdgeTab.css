@@ -1,0 +1,217 @@
+/* 短冊页签 · 卷面外缘那一条
+
+   设计稿右下角那一格图例叫「滑入滑出区域」：一张**短冊**（书签）+ 箭头。
+   形制照**稿子上真实的那两枚页签**做：册面上压着一朵**描边朱梅**和一枚**深墨箭头**，
+   位置也更靠外。
+
+   形制全部按 1579×996 的稿子量，按 0.912 折到 1440×908 的默认窗：
+
+     尺寸 册面 19.2 × 98.4（稿 21 × 108）——令牌在 tokens.css（--tab-w / --tab-h）
+     位置 左页签外缘＝**贴住纸卷的可见边**（roller.png 的 50% 不透明列）再留 2px，
+          定义在 App.css（跟 --roller-x / --roller-w 一起）；
+          右页签外缘 x 1536 → 2.723%；
+          册面中心 y 403.5 → 窗口高的 40.5%
+     轮廓 梯形：外缘是一条直线（整个身高），内缘短 20px（只占 21.5%~74.8%）；
+          右页签照镜子画，收的是内缘那一边。
+          稿上收肩是一道 S 形缓坡，与这条直边最多差 2 设计 px（≈1.8 窗口 px）——
+          这个量按「几何形用 CSS 画、不搬像素」的纪律接受。
+     材质 平米的半透纸：稿上「册面 #c0b3a3」叠在「夜空 #1d2b3a」上，反解得
+          米白 #e2d4be 的 83% 不透明。**底色上不铺任何贴图**——
+          19px 宽的册面上贴和纸纤维，一眼就是一道竖纹白条，稿上的册面是平米的。
+
+   四个非正交的地方：
+
+   1. **两头收尖用 clip-path。** 不用图片、也不搭一个空盒子去画三角——
+      几个百分点的多边形就够，而且跟着盒子缩放。`clip-path` 会把子树一起裁掉，
+      所以它挂在**册面那一层**（.edge-tab__slip）上，按钮本身仍是完整的矩形，
+      命中区不吃亏。
+
+   2. **命中区比册面大一圈。** 按钮比册面宽 24px、高 24px（各边 12px 的
+      透明内缩），19px 宽的册面照样好按。按下的缩放会把命中区一起缩，
+      所以这里按下**只换色、不缩**（见文件末）。
+
+   3. **页面之外是透明的**（异形窗），所以册面不能是纯白：用米白半透，
+      让桌面的颜色透一点点进来，再加一道更暗的内描边——像一张透光的和纸。
+      这一条同时是**左边纸卷**的要害：册面只有整个让在纸卷实体（4.66% 起）
+      外面，那条最暗的卷边才不会被一块米白盖住（1440 窗下内缘 x 61 < 实体 x 67）。 */
+
+.edge-tab {
+  position: absolute;
+  /* 竖直位置**只能用 top**：全站有一条 `button:active { transform: scale(.96) }`，
+     它的权重比这里高——用 translateY(-50%) 居中，一按下去就被顶掉，
+     页签当场往下坠半个身位、指针落到钮外，click 根本不发。
+     所以直接算：（册面中心 40.5% 的窗高）−（册面高 + 上下各 12px 命中区）/ 2。 */
+  top: calc(var(--tab-cy) - (var(--tab-h) + 24px) / 2);
+  z-index: 3; /* 压在纸卷（2）与卷面（3）**之上**：稿子上它就是这么露在外面的 */
+  display: flex;
+  align-items: center;
+  width: calc(var(--tab-w) + 24px);
+  height: calc(var(--tab-h) + 24px);
+  padding: 12px;
+  /* 整卷（.makimono）是 pointer-events: none——这样点「透明处」不会误触。
+     它的每一块实体都得自己把事件收回来：版心、纸片、窗口按钮，以及这一条。 */
+  pointer-events: auto;
+  cursor: pointer;
+  background: none;
+  /* 投在桌面 / 纸上的那道软影。挂在**按钮**上：父层看到的是已经被 clip-path
+     裁好的册面剪影，影子才落得到册子外面（挂在册面自己身上会被一起裁掉）。 */
+  filter: var(--shadow-tab);
+  /* 触摸端：这一条只归我们拉，别让浏览器把它当成滚动 / 缩放的起手 */
+  touch-action: none;
+}
+
+/* 外缘那一侧的透明内缩不要：册面要正好贴在设计稿量出来的位置上 */
+.edge-tab--rail {
+  left: calc(var(--tab-out-l) - 12px);
+  justify-content: flex-start;
+}
+
+.edge-tab--vocab {
+  right: calc(var(--tab-out-r) - 12px);
+  justify-content: flex-end;
+}
+
+/* ---------------------------------------------------------------- 册面 */
+.edge-tab__slip {
+  position: relative;
+  display: block;
+  width: var(--tab-w);
+  height: var(--tab-h);
+  /* 米白半透 —— 稿子上的书签是**透光的和纸**（实测反解：米白 83% 不透明）。
+     写成不透明的米白，落在深色桌面上就是一条白纸片。 */
+  background-color: rgb(226 212 190 / 0.83);
+  /* 稿上册面四周有一道更暗的一线。用 inset 而不是 border：border 会参与布局，
+     而册面的宽高是令牌算出来的；inset 影画在边框盒内、再被 clip-path 一起裁，
+     于是这道线正好沿着梯形走。 */
+  box-shadow: inset 0 0 0 1px rgb(124 106 89 / 0.34);
+  /* 梯形：外缘（左）整个身高，内缘（右）只占 21.5%~74.8%
+     —— 稿上内缘 y 373..430、外缘 y 350..457。 */
+  clip-path: polygon(0 0, 100% 21.5%, 100% 74.8%, 0 100%);
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+/* 右页签是**镜像**：外缘在右（整个身高），收的是内缘（左）。
+   稿上那两枚是照镜子画的（‹ 与 ›、折痕、收肩都在各自的外侧），
+   所以这段 polygon 也要翻过来——直接用同一段会让右页签收错边。 */
+.edge-tab--vocab .edge-tab__slip {
+  clip-path: polygon(100% 0, 0 21.5%, 0 74.8%, 100% 100%);
+}
+
+/* 竖着的一道折痕：短冊是折过的，不是切出来的。
+   压在册面外侧那一列（左栏在左、右栏在右）。 */
+.edge-tab__crease {
+  position: absolute;
+  top: 12%;
+  bottom: 26%;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(124 106 89 / 0.32) 18%,
+    rgb(124 106 89 / 0.32) 82%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.edge-tab--rail .edge-tab__crease {
+  left: 22%;
+}
+
+.edge-tab--vocab .edge-tab__crease {
+  right: 22%;
+}
+
+/* ---------------------------------------------------------------- 册面上的两枚记号
+   稿上真实页签是：**描边朱梅**（上）+ **深墨箭头**（下）。
+   竖直位置按稿子量：朱梅中心在册面高的 35.4%（稿 y 388）、箭头在 57%（稿 y 411）；
+   两枚都水平居中。
+
+   用 `translate: -50% -50%` 定位而**不是 `transform`**：全站那条
+   `button:active { transform: scale(.96) }` 会把 transform 顶掉，
+   一按下去记号就各自往右下跑半个身位。 */
+
+.edge-tab__mark {
+  position: absolute;
+  left: 50%;
+  top: 35.4%;
+  display: grid;
+  place-items: center;
+  translate: -50% -50%;
+  color: var(--accent);
+  /* 稿上它是**纸上的一个淡印子**（与目次页选中行左端那朵同一档），不是一枚实印 */
+  opacity: 0.62;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.edge-tab__arrow {
+  position: absolute;
+  left: 50%;
+  top: 57%;
+  display: grid;
+  place-items: center;
+  translate: -50% -50%;
+  color: var(--ink);
+  transition: color var(--dur-1) var(--ease);
+}
+
+/* ---------------------------------------------------------------- 三态 */
+
+.edge-tab:hover .edge-tab__slip {
+  background-color: rgb(235 224 204 / 0.88);
+}
+
+.edge-tab:hover .edge-tab__mark {
+  opacity: 0.85;
+}
+
+.edge-tab:hover .edge-tab__arrow {
+  color: var(--accent);
+}
+
+/* 按住（或正在拖）＝这一条被捏住了 */
+.edge-tab[data-dragging] {
+  cursor: grabbing;
+}
+
+.edge-tab[data-dragging] .edge-tab__slip {
+  background-color: rgb(241 230 212 / 0.92);
+}
+
+.edge-tab[data-dragging] .edge-tab__mark {
+  opacity: 0.85;
+}
+
+.edge-tab[data-dragging] .edge-tab__arrow {
+  color: var(--accent);
+}
+
+/* 命中的是按钮，册面是被 clip-path 掐出来的那一小块；两者之间那 12px 是透明的，
+   所以要给按钮本身一个提示区（不然鼠标移到册外那一圈会没有任何回执）。 */
+.edge-tab:focus-visible .edge-tab__slip {
+  background-color: rgb(241 230 212 / 0.98);
+}
+
+/* 页签窄，按下的缩放会把上/下沿让进 1~2px，点得靠边就会「按下去、抬起来时
+   已经不在钮上」。所以这里按下**只换色、不缩**：位置与命中区一寸不让。 */
+.edge-tab:active:not(:disabled),
+.edge-tab[data-dragging] {
+  transform: none;
+}
+
+/* 触摸端不做悬停；按下时给一档回执 */
+@media (hover: none) {
+  .edge-tab:active .edge-tab__slip {
+    background-color: rgb(241 230 212 / 0.92);
+  }
+
+  .edge-tab:active .edge-tab__arrow {
+    color: var(--accent);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .edge-tab__slip {
+    background-color: #e2d4be;
+  }
+}

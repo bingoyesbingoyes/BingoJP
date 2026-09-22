@@ -1,4 +1,4 @@
-//! BingoReader 的 Tauri 后端。
+//! BingoJP 的 Tauri 后端。
 //!
 //! 两件事：
 //!   · 把前端的朗读请求转发给**本机 VOICEVOX**（`tts.rs`）；

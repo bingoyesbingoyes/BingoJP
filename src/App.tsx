@@ -6,12 +6,14 @@ import "./styles/paper.css";
 import "./styles/App.css";
 import { lessonById, lessonsByUnit, vocabById } from "./features/data";
 import { usePrefs } from "./features/prefs";
+import { useRubyFit } from "./features/rubyFit";
 import { useTts } from "./features/voice/useTts";
+import { EdgeTab } from "./components/EdgeTab";
 import { LessonRail } from "./components/LessonRail";
-import { TopBar } from "./components/TopBar";
+import { WindowButtons } from "./components/WindowControls";
 import { ReaderView } from "./components/ReaderView";
 import { VocabPanel } from "./components/VocabPanel";
-import { EdgeTab, ToolShard, UnitStepper } from "./components/ScrollChrome";
+import { ToolShard, UnitStepper } from "./components/ScrollChrome";
 
 export default function App() {
   const [currentId, setCurrentId] = useState(1);
@@ -24,8 +26,11 @@ export default function App() {
   const units = useMemo(() => lessonsByUnit(), []);
   const unitAt = units.findIndex((group) => group.lessons.some((item) => item.id === currentId));
 
-  // 配色是固定的：一套，取自 2.png，写在 tokens.css 里。
-  // 没有 data-style、没有切换、也没有要接进存档的状态。
+  /* 注音比汉字宽的片段：把注音缩一档、多余的挂到两侧，别让它把左右两个字挤开。
+     挂在这里（不是 ReaderView / VocabPanel 各挂一次）：课文、目次、生词表里的 ruby
+     都在这一棵树下，一处收完；它的 layoutEffect 在子组件提交**之后**才跑，
+     所以 DOM 已经在了。见 features/rubyFit.ts。 */
+  useRubyFit();
 
   // 换课就别让上一课的声音继续响。缓存留着——切回来重播是秒开的。
   const stop = tts.stop;
@@ -34,7 +39,10 @@ export default function App() {
   }, [currentId, stop]);
 
   const selectLesson = useCallback((id: number) => setCurrentId(id), []);
-  const toggleRail = useCallback(() => update({ railOpen: !prefs.railOpen }), [prefs.railOpen, update]);
+  const railOpen = prefs.railOpen;
+  const vocabOpen = prefs.vocabOpen;
+  const toggleRail = useCallback(() => update({ railOpen: !railOpen }), [railOpen, update]);
+  const toggleVocab = useCallback(() => update({ vocabOpen: !vocabOpen }), [vocabOpen, update]);
 
   /** 单元步进：保住「单元里的第几课」，换单元比换课更像翻卷——位置不该跳。 */
   const stepUnit = useCallback(
@@ -49,17 +57,15 @@ export default function App() {
   );
 
   return (
-    /* .makimono＝异形窗的整卷。从外到内四层：
-       纸卷 → 卷面（撕裂纸边，轮廓由 edge-sheet.png 的 mask 给出） →
-       版心 `.app` → 三枚纸片。卷面之外的像素全透明，桌面从缺口里透进来。
+    /* .makimono＝整卷。从外到内：卷面（撕口轮廓由 edge-sheet.png 的 mask 给出）
+       → 版心 .app → 两枚纸片。**窗口里没有整幅背景图**：纸之外是透明的，
+       桌面从缺口里透进来——异形窗的轮廓就是靠这一点才立得住。
 
        data-tauri-drag-region="deep"：**整棵子树都能拖窗口**。
        Tauri 2.11 的 drag.js 是这么走的：从事件目标往上找这个属性，
        中途撞到 BUTTON / A / INPUT / SELECT / TEXTAREA / LABEL / SUMMARY
        或 role 是 button/link/option… 的元素就**停下并判定为不可拖**。
-       所以这一条属性既让「非按钮的地方」都能拖动窗口，又不会把按钮吃掉。
-       （代价：正文区按住拖动会拖窗口，不能框选文字——若要框选，
-       给 .reader__inner 单独打 data-tauri-drag-region="false" 即可。） */
+       所以这一条属性既让「非按钮的地方」都能拖动窗口，又不会把按钮吃掉。 */
     <div className="makimono" data-tauri-drag-region="deep">
       {/* 投影：一层**静态剪影**（与纸同形、被纸整个盖住），两道 drop-shadow 挂在它身上。
           纸自己在滑动时纹丝不动，所以这层影子只算一次；挂在 .makimono 上会每帧
@@ -67,24 +73,34 @@ export default function App() {
       <i className="makimono__shadow" aria-hidden>
         <i className="makimono__shadow-sheet" />
         <i className="makimono__shadow-roller" />
-        <i className="makimono__shadow-unit" />
-        <i className="makimono__shadow-tools" />
       </i>
 
-      {/* 左端那一卷纸：卷口与卷尾都是纸（2.png 没有木芯），所以一块元素就够。
-          这一块是**从 2.png 上整块抠下来的贴图**（public/roller.png，见
-          scripts/trace_roller.py）——锥度、肌理、卷口、卷尾全部照图，不是 CSS 描的。 */}
+      {/* 左端那一卷纸：卷口与卷尾都是纸。**这一块照旧不动**——
+          仍是 2.png 上整块抠下来的贴图（public/roller.png，见 scripts/trace_roller.py）。 */}
       <i className="makimono__roller" aria-hidden />
 
       <div className="makimono__sheet">
         {/* 撕裂口三层：断口旧纸 → 纤维 → 纸面。手撕的痕就在这一圈里 */}
         <i className="makimono__rim" aria-hidden />
         <i className="makimono__fibre" aria-hidden />
-        <i className="makimono__face paper-bg" aria-hidden />
+        <i className="makimono__face" aria-hidden />
+
+        {/* 和纸肌：铺在**整幅卷面**上，盖住三页的纸色（不然两栏那两页是平的）。
+            见 App.css 的说明。 */}
+        <i className="makimono__mottle" aria-hidden />
+
+        {/* 目次页与生词页的**纸色**：铺满卷面整个高度，被卷面轮廓裁边。
+            正文的版心让开撕口，纸不让——稿上这三页一直铺到撕口。
+            所以底色单独一层，和版心分开（见 App.css 的说明）。 */}
+        <div className="makimono__pages" aria-hidden>
+          <i className="makimono__page makimono__page--rail" data-open={prefs.railOpen || undefined} />
+          <i
+            className="makimono__page makimono__page--vocab"
+            data-open={prefs.vocabOpen || undefined}
+          />
+        </div>
 
         <div className="app">
-          <TopBar />
-
           {/* data-rail / data-vocab＝「这一页现在摊开着」。中缝是对折出来的：
               两页合着时，课文那一栏边上不该有半道来历不明的影。见 App.css。 */}
           <div
@@ -92,44 +108,36 @@ export default function App() {
             data-rail={prefs.railOpen || undefined}
             data-vocab={prefs.vocabOpen || undefined}
           >
-            <LessonRail
-              currentId={currentId}
-              onSelect={selectLesson}
-              open={prefs.railOpen}
-              onToggle={toggleRail}
-            />
+            <LessonRail currentId={currentId} onSelect={selectLesson} open={prefs.railOpen} />
 
             <ReaderView lesson={lesson} prefs={prefs} speech={tts} />
 
             <VocabPanel
               open={prefs.vocabOpen}
-              onToggle={() => update({ vocabOpen: !prefs.vocabOpen })}
               vocab={vocab}
+              lesson={lesson}
               prefs={prefs}
               speech={tts}
             />
           </div>
-
-          {/* 两枚常驻页签：面板滑走后，抓手留在卷面边缘，位置永不移动 */}
-          <EdgeTab
-            kind="rail"
-            open={prefs.railOpen}
-            onToggle={toggleRail}
-            label="展开目次"
-          />
-          <EdgeTab
-            kind="vocab"
-            open={prefs.vocabOpen}
-            onToggle={() => update({ vocabOpen: !prefs.vocabOpen })}
-            label="展开生词表"
-            count={vocab.declared_count}
-          />
         </div>
       </div>
 
-      {/* 两枚纸片：与卷面断开，浮在下面的水面上。2.png 版心正下方还有一枚
-          「1 / 8」，但那是**写在水面上的**、底下没有纸；本应用底下是桌面，
-          没有纸就一片糊，所以整块不做——课次切换交给目次页。 */}
+      {/* 两枚常驻书签页签：面板滑走、滑回，位置都不动。
+          它们钉在**窗口外缘**（纸卷左侧 / 纸边右侧），所以挂在 .makimono 上，
+          不跟着版心排——版心让开了撕口，页签却要在撕口之外。 */}
+      <EdgeTab side="rail" open={prefs.railOpen} onToggle={toggleRail} label="目次页：展开 / 收起" />
+      <EdgeTab
+        side="vocab"
+        open={prefs.vocabOpen}
+        onToggle={toggleVocab}
+        label="生词表：展开 / 收起"
+      />
+
+      {/* 窗口的两颗朱印：位置比版心还高（贴着纸的右上角），所以也在窗口这一层 */}
+      <WindowButtons />
+
+      {/* 两枚纸片：与卷面断开，浮在下面的夜色上 */}
       <UnitStepper
         unit={lesson.unit}
         total={units.length}

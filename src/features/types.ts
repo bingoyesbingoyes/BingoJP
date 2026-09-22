@@ -1,8 +1,7 @@
-/** BingoReader 的数据契约。字段名与 `reader/data/*.json` 一一对应（由
- *  `reader/scripts/extract_epub.py` 生成，`check_data.py` 把关）。
+/** BingoJP 的数据契约：只声明前端**读得到**的字段（`data/*.json` 由
+ *  scripts/extract_epub.py 生成、check_data.py 把关，形状在生成时就验过）。
  *
- *  不引运行时 schema 校验：数据是构建期由本地脚本生成的，形状在生成时就验过，
- *  前端只声明类型、不再重复一遍。类型对不上时 `tsc -b` 会先报。
+ *  不引运行时 schema 校验：类型对不上时 `tsc -b` 会先报。
  */
 
 /** 一段文本。`r` 有值＝这段带读音（会渲染成 `<ruby>`）。 */
@@ -25,7 +24,6 @@ interface Section {
   title_ja: Seg[];
   /** 「应用课文」后面的小标题（如「出迎え」）；其余两节为 null */
   subtitle_ja: Seg[] | null;
-  title_zh: string;
   sentences: Sentence[];
 }
 
@@ -34,21 +32,12 @@ export interface Lesson {
   part: "upper" | "lower";
   unit: number;
   title_ja: Seg[];
-  title_zh: string;
   sections: Section[];
-}
-
-/** 生词表假名栏的一段。`mark` 为 null＝不在声调块内。 */
-interface KanaRun {
-  t: string;
-  mark: "accent" | "accent0" | null;
 }
 
 export interface VocabWord {
   word: Seg[];
   kana: string;
-  kana_runs: KanaRun[];
-  pos: string;
   zh: string;
 }
 
@@ -77,11 +66,11 @@ export interface Prefs {
   voiceId: number | null;
   /** 目次页展开着没有。默认展开——一进来就该看见整册的课。 */
   railOpen: boolean;
-  /** 生词表展开着没有。默认收起。 */
+  /** 生词表展开着没有。默认展开——一进来就该看见本课的词。 */
   vocabOpen: boolean;
 }
 
-/* 配色**不是偏好**：只有一套，取自 2.png，写在 tokens.css 里。
+/* 配色**不是偏好**：只有一套，取自 new_design.png 的「配色方案」，写在 tokens.css 里。
    它不进存档，也就没有「用户选了哪套」这个状态可记。 */
 
 /** `starting` ＝ 正在拉起随包引擎（CPU 版加载模型要十几秒），不是错误状态。 */

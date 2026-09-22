@@ -1,23 +1,24 @@
 /** 中间主区：当前课的课文。三节按顺序渲染；每句是一个按钮，点一下朗读、再点停。
  *  朗读文本＝`ja` 拼起来的基础文本（抽取时已剥掉句首说话人，全角空格原样保留）。
  *
- *  版面上有三条纪律（都来自 2.png）：
+ *  版面上有四条纪律：
  *
- *  1. **课文标题不参与翻译与注音**。卷头的「第 N 課　…」是标题，不是正文：
- *     不出振り仮名、也不在下面挂中文。课名的中文在目次页里已经有了
- *     （那里一课两行：日文 + 中文），标题行不必再重复一遍。
- *     节名（基本課文 / 基本会話）同理——它们是结构，不是内容。
+ *  1. **标题不注音、不翻译**。卷头的「第 N 課　…」是标题，不是正文，
+ *     标题行不必再挂一行中文。节名（基本課文 / 基本会話）同理——它们是结构，不是内容。
  *
- *  2. **开关不抖**。注音关掉时 rt 只是被藏起来（Segments 的 data-off），
- *     中文关掉时那一行也**原地留着**（.line__zh 的 data-off）——
- *     切开关只换字的显隐，行盒一个像素都不动。
+ *  2. **节与节之间是一条通栏线 + 一朵朱梅，节名压在线下的枯茶笔扫上**。
+ *     这是设计稿的做法（线在上、名在下），不是「名 + 线」并排。
  *
- *  3. **句子要密**。行距、内缩、句间隔都压到最小，一屏尽可能多地摊开课文。
+ *  3. **开关不抖**。注音关掉时 rt 只是被藏起来（Segments 的 data-off），
+ *     中文关掉时那一行也**原地留着**（.line__zh 的 data-off）。
+ *
+ *  4. **句子按稿子缩进**：正文比标题让进一格（字下げ），
+ *     说话人（Ａ／李）**回退到标题那一列**——稿子上「Ａ　田中：」的 Ａ 就顶在行首。
  */
 
 import type { CSSProperties } from "react";
-import { Ornament } from "./Seal";
-import { Segments } from "./Segments";
+import { Blossom } from "./Seal";
+import { Segments, JaText } from "./Segments";
 import { segText } from "../features/data";
 import type { Lesson, Prefs, Sentence, SpeechControls } from "../features/types";
 import "./ReaderView.css";
@@ -37,6 +38,13 @@ interface ReaderViewProps {
 export function ReaderView({ lesson, prefs, speech }: ReaderViewProps) {
   return (
     <article className="reader">
+      {/* 纸上的两幅画：右上那枝花、右下那幅水墨。
+          它们和正文**不在同一层**——是印在纸上的，所以不跟着正文滚，
+          也不参与交互（pointer-events: none）、不进读屏（aria-hidden）。
+          图是从设计稿上整块抠下来的（public/art-*.png，见 trace_design.py）。 */}
+      <span className="reader__art reader__art--branch paper-art paper-art--branch" aria-hidden />
+      <span className="reader__art reader__art--sumi paper-art paper-art--sumi" aria-hidden />
+
       <div className="reader__scroll scroll">
         <div className="reader__inner">
           <header className="reader__head">
@@ -45,10 +53,10 @@ export function ReaderView({ lesson, prefs, speech }: ReaderViewProps) {
               {PART_MARK[lesson.part]}
             </span>
 
-            {/* 课文标题：只出日文。**不注音、不翻译**——标题是标题，正文是正文。
-                标题下面**不画界栏**、也不挂「第 N 単元 · 共 N 句」那行小字：
-                标题与「基本課文」之间隔着的应该是纸，不是一条线 + 一行注。 */}
-            <h1 className="reader__title jp">{segText(lesson.title_ja)}</h1>
+            {/* 课文标题：只出日文。下面那行中文**不采纳**（见文件头第 1 条）。 */}
+            <h1 className="reader__title jp">
+              <JaText text={segText(lesson.title_ja)} />
+            </h1>
           </header>
 
           {speech.notice ? (
@@ -71,20 +79,29 @@ export function ReaderView({ lesson, prefs, speech }: ReaderViewProps) {
           {lesson.sections.map((section, sectionIndex) => {
             return (
               <section className="sec" key={sectionIndex}>
-                {/* 节标题＝一条分隔带：节名压在一道淡墨笔扫上（不是边框題簽），
-                    后面接一条界栏细线 + 四瓣花。笔扫是**纸上的痕迹**，所以走伪元素。 */}
+                {/* 节头：**通栏线在上、节名在下**。
+                    线正中压一朵朱梅（稿子上每一道通栏线的中心都是它）；
+                    节名压在枯茶笔扫上（paper-wash，从稿子抠下来的那一枚）。 */}
                 <header className="sec__head">
+                  <span className="sec__rule" aria-hidden>
+                    <span className="sec__blossom">
+                      <Blossom size={15} />
+                    </span>
+                  </span>
+
                   <h2 className="sec__ja jp">
-                    <span className="sec__kind">{segText(section.title_ja)}</span>
+                    <span className="sec__name">
+                      <span className="sec__wash paper-wash" aria-hidden />
+                      <span className="sec__kind">
+                        <JaText text={segText(section.title_ja)} />
+                      </span>
+                    </span>
                     {section.subtitle_ja ? (
                       <span className="sec__title">
                         <Segments segs={section.subtitle_ja} reading={prefs.showReading} />
                       </span>
                     ) : null}
                   </h2>
-                  <span className="sec__rule" aria-hidden>
-                    <Ornament />
-                  </span>
                 </header>
 
                 <ol className="lines">
@@ -139,18 +156,28 @@ function SentenceLine({
         data-playing={playing || undefined}
         data-pending={pending || undefined}
         /* --i 给逐行入场动画（每句错开 18ms） */
-        style={{ "--i": String(sentenceIndex) } as CSSProperties}
+        style={{ "--i": String(Math.min(sentenceIndex, 12)) } as CSSProperties}
         onClick={() => void speech.speak(key, text)}
         aria-label={`${playing ? "停止朗读" : "朗读"}：${text}`}
       >
-        <span className="line__icon" aria-hidden>
-          {playing ? <StopIcon /> : <SpeakerIcon />}
-        </span>
+        {/* 朗读中的记号：稿子的三态里没有「播放中」，所以这里用**同一套设计元素**
+            里最轻的一件——行首一朵朱梅，压在文字外的缩进里，不占布局。 */}
+        {playing || pending ? (
+          <span className="line__mark" aria-hidden>
+            {playing ? <Blossom size={13} filled /> : <Blossom size={13} />}
+          </span>
+        ) : null}
+
         <span className="line__main">
           <span className="line__ja jp">
-            {/* 说话人只出「Ａ　甲：」这一小截，颜色比正文淡一档 */}
+            {/* 说话人（Ａ／李）**回退到标题那一列**——稿子上就是这样：正文让进一格，
+                说话人顶在行首。用负 margin 而不是另开一层：说话的还是同一行。
+                说话人里那枚全角空格（「Ａ　甲」）也走 JaText：它跟正文里的空格是同一个
+                符号，宽度得一样，否则行首那一格比别处宽。 */}
             {sentence.speaker ? (
-              <span className="line__speaker">{sentence.speaker}：</span>
+              <span className="line__speaker">
+                <JaText text={sentence.speaker} />：
+              </span>
             ) : null}
             <Segments segs={sentence.ja} reading={prefs.showReading} />
           </span>
@@ -161,28 +188,5 @@ function SentenceLine({
         </span>
       </button>
     </li>
-  );
-}
-
-function SpeakerIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M2.5 6.2h2.2L7.5 3.6v8.8L4.7 9.8H2.5a.7.7 0 0 1-.7-.7V6.9a.7.7 0 0 1 .7-.7Z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-      <path d="M10 5.8a3.4 3.4 0 0 1 0 4.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M11.9 4a5.6 5.6 0 0 1 0 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function StopIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.4" fill="currentColor" />
-    </svg>
   );
 }

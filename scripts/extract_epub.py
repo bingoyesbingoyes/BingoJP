@@ -1,4 +1,4 @@
-"""把两本 EPUB（课文 / 单词）抽成 BingoReader 前端要用的 JSON。
+"""把两本 EPUB（课文 / 单词）抽成 BingoJP 前端要用的 JSON。
 
 **只读**：EPUB 就地读 `data/epub/`，不复制、不修改。产物写到 `data/`。
 
@@ -12,6 +12,10 @@
       `<ruby>李<rp>（</rp><rt>り</rt><rp>）</rp></ruby>さん` 的基础文本是 `李さん`。
     · `<ruby>` 另抽成 `{t, r}` 片段（`r` 是读音），其余文本抽成 `{t}`。
     · 生词表假名栏的 `.accent` / `.accent0` 抽成 `kana_runs`（声调分段）。
+
+标点**要收一遍**（`normalize_ja`）：这本 EPUB 是中文版转出来的，日语正文沿用了
+中文标点——逗号是「，」、省略号是「．．．」，还有几处标点在排版时被塞了个全角空格。
+日语规范是「、」「…」、标点自己带空。只动**日语**：中文译文里的「，」是中文的，不动。
 
 用法（在工程根目录下跑）：
     python scripts/extract_epub.py                    # 预演：只打印摘要，不落盘
@@ -51,6 +55,75 @@ AT_MARK = re.compile(r"@\d")
 #: 应用课文的小标题前缀。后面可能跟一个或两个全角空格（第 22/30/33 课是两个）。
 APPLIED = "应用课文"
 SPACES = "\u3000 \t\r\n"
+
+# ---------------------------------------------------------------- 日语标点规范化
+
+IDEO_SPACE = "\u3000"
+CJK_COMMA = "\uff0c"      # ，中文全角逗号（EPUB 里当日语逗号在用）
+IDEO_COMMA = "\u3001"     # 、日语读点
+ELLIPSIS = "\u2026"       # …日语省略号
+FULL_STOP = "\u3002"      # 。日语句点
+CJK_DOT = "\uff0e"        # ．中文全角句点（EPUB 里当省略号的点在用）
+
+#: 被引用的**中文**：「中国語でも…“来，来！”…」。引号里的逗号是中文的，
+#: 不能改成「、」——它不是日语的读点。
+QUOTED_ZH = re.compile(f"\u201c[^\u201d]*\u201d")
+#: 中文的省略号是三个全角句点，日语写作一个「…」。
+DOT_RUN = re.compile(f"{CJK_DOT}{{2,}}")
+#: 原文有一处收尾写成「…．」（省略号后又一个句点）。
+DANGLING_DOT = re.compile(f"{ELLIPSIS}{CJK_DOT}")
+#: 标点前面多出来的全角空格：日语标点自己带空，前面不该再有一个空档。
+SPACE_BEFORE_PUNCT = re.compile(f"[{IDEO_SPACE}]+(?=[{FULL_STOP}{IDEO_COMMA}{CJK_COMMA}？！」])")
+#: 读点后面多出来的全角空格：读点已经是一个停顿，再跟一个空档就成了两个。
+SPACE_AFTER_COMMA = re.compile(f"(?<=[{IDEO_COMMA}{CJK_COMMA}])[{IDEO_SPACE}]+")
+
+#: 规范化时用来占住引号内容的记号。正文里不会出现 \x00。
+_HOLD = re.compile("\x00(\\d+)\x00")
+
+
+def normalize_ja(text: str) -> str:
+    """把一段日语文本的标点收成日语规范。
+
+    只做四件事：中文逗号 →「、」、中文省略号 →「…」、标点前后的全角空格去掉、
+    「…．」补成「…。」。「、」「。」「？！」本来就是日语规范，不动。
+
+    幂等：收过一遍的文本再收还是它自己。
+    """
+    if not text:
+        return text
+
+    # 引号里的是被引用的中文，先整段挖出来，别让后面几条规则碰到它
+    held: list[str] = []
+
+    def hold(match: re.Match) -> str:
+        held.append(match.group(0))
+        return f"\x00{len(held) - 1}\x00"
+
+    text = QUOTED_ZH.sub(hold, text)
+    text = DOT_RUN.sub(ELLIPSIS, text)
+    text = DANGLING_DOT.sub(f"{ELLIPSIS}{FULL_STOP}", text)
+    text = text.replace(CJK_COMMA, IDEO_COMMA)
+    text = SPACE_BEFORE_PUNCT.sub("", text)
+    text = SPACE_AFTER_COMMA.sub("", text)
+    return _HOLD.sub(lambda m: held[int(m.group(1))], text)
+
+
+def normalize_segments(segs: list[dict]) -> list[dict]:
+    """对 `Seg[]` 逐段做 normalize_ja。
+
+    引号是**段内**闭合的（「…つけて。“再见！”」整段在一起，抽查过全书），
+    所以逐段处理不会漏掉引号里的中文逗号。`check_data.py` 会兜住这条前提。
+    """
+    out: list[dict] = []
+    for seg in segs:
+        text = normalize_ja(seg["t"])
+        if not text:
+            continue
+        item = {"t": text}
+        if "r" in seg:
+            item["r"] = seg["r"]
+        out.append(item)
+    return out
 
 
 def localname(element) -> str:
@@ -190,17 +263,23 @@ def lstrip_spaces(segs: list[dict]) -> list[dict]:
 
 
 def split_speaker(segs: list[dict], text: str) -> tuple[str | None, list[dict]]:
+    """剥掉句首说话人。
+
+    说话人**两端要剪干净**：EPUB 里有 58 处写成「李　：」（名字和冒号之间垫着一个
+    全角空格，是原书排版留下的）。不剪的话界面上就是「李　：」——名和冒号之间空一格，
+    正是用户报的「字与字之间距离太大」。「Ａ　甲」中间那个空格是内容，留着。
+    """
     match = SPEAKER.match(text)
     if not match:
         return None, segs
-    return match.group(1), drop_prefix(segs, match.end())
+    return match.group(1).strip(SPACES), drop_prefix(segs, match.end())
 
 
 def split_speaker_text(text: str) -> tuple[str | None, str]:
     match = SPEAKER.match(text)
     if not match:
         return None, text
-    return match.group(1), text[match.end():]
+    return match.group(1).strip(SPACES), text[match.end():]
 
 
 def parse_lesson(data: bytes, lesson_id: int) -> dict:
@@ -213,7 +292,7 @@ def parse_lesson(data: bytes, lesson_id: int) -> dict:
     if len(blocks) < 2:
         raise ValueError(f"第 {lesson_id} 课标题结构不对：{len(blocks)} 个块")
 
-    title_ja = segments(blocks[0])
+    title_ja = normalize_segments(segments(blocks[0]))
     title_zh = base_text(blocks[1])
     cursor = 2
 
@@ -226,11 +305,12 @@ def parse_lesson(data: bytes, lesson_id: int) -> dict:
             raise ValueError(f"第 {lesson_id} 课第 {len(sections) + 1} 节标题不是 h2/h3")
         cursor += 2
 
-        section_ja = segments(head_ja)
+        section_ja = normalize_segments(segments(head_ja))
         section_zh = base_text(head_zh)
         subtitle = None
         if base_text(head_ja).startswith(APPLIED):
             subtitle = lstrip_spaces(drop_prefix(segments(head_ja), len(APPLIED)))
+            subtitle = normalize_segments(subtitle)
             section_ja = [{"t": APPLIED}]
 
         sentences: list[dict] = []
@@ -244,6 +324,7 @@ def parse_lesson(data: bytes, lesson_id: int) -> dict:
 
             ja_segments = segments(src)
             speaker, ja_segments = split_speaker(ja_segments, base_text(src))
+            ja_segments = normalize_segments(ja_segments)
             _, zh = split_speaker_text(base_text(dst))
             sentences.append({"ja": ja_segments, "zh": zh, "speaker": speaker})
 
@@ -425,7 +506,7 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
-    parser = argparse.ArgumentParser(description="把两本 EPUB 抽成 BingoReader 的 lessons.json / vocab.json")
+    parser = argparse.ArgumentParser(description="把两本 EPUB 抽成 BingoJP 的 lessons.json / vocab.json")
     parser.add_argument("--epub-dir", type=Path, default=APP / "data" / "epub",
                         help="放着两本 EPUB 的目录（默认 %(default)s）")
     parser.add_argument("--out-dir", type=Path, default=APP / "data",

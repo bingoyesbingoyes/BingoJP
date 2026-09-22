@@ -16,6 +16,8 @@ VOICEVOX/
 new_design.png
 image.png
 
+scripts/
+
 # Python
 __pycache__/
 *.py[cod]

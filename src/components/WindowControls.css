@@ -1,82 +1,73 @@
-/* 最小 / 关闭 · 朱印风
+/* 最小 / 最大化 / 关闭 · 毛笔朱印风
 
-   2.png 的最右上缘并列着两枚小印：一枚「−」、一枚「×」。它们不是 macOS 的
-   红黄绿——是同一枚**花边朱印圆**（Seal.tsx 的 SealRing），落在纸上。
+   位置量自设计稿：两枚印在纸的右上角，x 1455..1502、y 72..89（稿子 1579×996）。
+   换算成窗口坐标就是 **中心 y 8.08%、外缘到窗口右缘 4.88%**。
+   补到**三枚**（功能对齐 mac）：组往左长，右缘仍钉在 4.88% 不动。
 
-   平时空心：只有朱线 + 朱字。hover / 聚焦才填满朱砂，字翻成和纸色。
-   视觉 26px，命中范围用负 inset 的伪元素撑到 36×36，间距 7px，不打架。 */
+   它们是**窗口的一部分**，不是版心里的天头条——所以绝对定位在 .makimono 上，
+   而不是跟着 .app 排。这样版心的上边界可以安安心心让开撕口（9.4%），
+   不用为了托住这几颗印把课文的天地头吃掉。
+
+   尺寸：稿子上直径 18px → 窗口 1440 宽时 16.4px。视觉取 17px，
+   命中范围用负 inset 撑到 29×29，间距 11px。 */
 
 .windots {
+  position: absolute;
+  top: 8.08%;
+  right: 4.88%;
+  z-index: var(--z-chrome);
   display: flex;
   align-items: center;
-  gap: 7px;
-  flex: 0 0 auto;
+  gap: 11px;
+  /* top 是中心：这样文案里那个 8.08% 就是**中心**的位置，和量出来的数对得上 */
+  transform: translateY(-50%);
+  pointer-events: auto;
 }
 
 .windots__dot {
   position: relative;
   display: grid;
   place-items: center;
-  width: 1.625rem;
-  height: 1.625rem;
-  border-radius: var(--r-full);
+  width: 17px;
+  height: 17px;
+  border-radius: var(--r-xs);
   color: var(--accent);
-  transition: transform var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  transition:
+    color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
 }
 
-/* 花边圈：填满按钮，颜色跟着按钮的 currentColor 走 */
-.windots__ring {
+/* 命中范围：视觉 17px，可点 29px */
+.windots__dot::after {
+  content: "";
   position: absolute;
-  inset: 0;
-  pointer-events: none;
+  inset: -6px;
 }
 
 .windots__glyph {
   position: relative;
-  opacity: 0.85;
-  transition: opacity var(--dur-1) var(--ease);
+  width: 17px;
+  height: 17px;
+  display: block;
 }
 
-/* hover 才填：填的是**印泥**，所以是压进花边圈里的一个实心圆（84% 半径），
-   不是把整个按钮涂成矩形。 */
-.windots__dot::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: var(--r-full);
-  background: radial-gradient(circle closest-side at 50% 50%, var(--accent) 0 84%, transparent 84%);
-  opacity: 0;
-  transition: opacity var(--dur-1) var(--ease);
-}
-
-/* 视觉 26px，命中范围撑到 36×36 */
-.windots__dot::after {
-  content: "";
-  position: absolute;
-  inset: -5px;
-  border-radius: var(--r-full);
-}
-
+/* hover：朱砂吃满，字翻成纸色——和全站的「悬停态」同一条规矩 */
 .windots__dot:hover,
 .windots__dot:focus-visible {
   color: var(--seal-ink);
+  background-color: var(--accent);
 }
 
-.windots__dot:hover::before,
-.windots__dot:focus-visible::before {
-  opacity: 1;
+/* 按下再深一档；**不缩放**。这两颗印本来就只有 17px，一缩连命中区一起缩，
+   指针正好落到钮外，抬起来的时候 click 就不发了。 */
+.windots__dot:active {
+  transform: none;
+  color: var(--seal-ink);
+  background-color: var(--accent-deep);
 }
 
-.windots__dot:hover .windots__glyph,
-.windots__dot:focus-visible .windots__glyph {
-  opacity: 1;
-}
-
-/* 关闭：印泥压得更实一点，和「最小」拉开一档 */
-.windots__dot--close {
-  color: var(--accent);
-}
-
-.windots__dot--close .windots__glyph {
-  opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  .windots__dot {
+    transition: none;
+  }
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "BingoReader",
+  "productName": "BingoJP",
   "version": "0.1.0",
-  "identifier": "com.bingoyes.bingoreader",
+  "identifier": "com.bingoyes.bingojp",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5275",
@@ -12,11 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "BingoReader 読む・聴く",
+        "title": "BingoJP 読む・聴く",
         "width": 1440,
-        "height": 960,
+        "height": 908,
         "minWidth": 1120,
-        "minHeight": 780,
+        "minHeight": 707,
         "resizable": true,
         "center": true,
         "dragDropEnabled": false,

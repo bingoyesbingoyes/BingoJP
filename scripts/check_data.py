@@ -1,4 +1,4 @@
-"""BingoReader 数据闸门：体检 `data/lessons.json` 与 `vocab.json`。
+"""BingoJP 数据闸门：体检 `data/lessons.json` 与 `vocab.json`。
 
 退出码就是结论：0 = 全过，1 = 有 FAIL。
 
@@ -9,7 +9,8 @@
     · 每个片段序列拼接非空；没有没转掉的 `!x(y)` / `@N` 记号
     · 词条 2132 条；假名切段拼回来等于整词；词性落在闭合的 13 个值里；
       表头声明的词数 == 表里实际行数
-    · 两本书（课文 / 单词）逐课课名的基础文本一致
+    · 日语标点已收干净（，→、／标点前后不贴全角空格／中文省略号 →「…」）
+    · 两本书（课文 / 单词）逐课课名的基础文本一致（两边都先按日语标点收一遍再比）
 
 **独立读一遍 EPUB**（不复用 extract_epub.py 的解析）：否则抽取脚本的同一个 bug
 会同时写坏数据又放过自己，闸门就成了摆设。
@@ -67,6 +68,46 @@ def seg_text(segs: list[dict]) -> str:
 
 def has_mark(text: str) -> bool:
     return bool(LEFT_MARK.search(text) or AT_MARK.search(text))
+
+
+# ---------------------------------------------------------------- 日语标点
+
+#: 标点前后不该站全角空格的那几个（日语标点自己带空）。
+PUNCT = "。、，？！」"
+#: 已经是一个停顿、后面不该再跟一个空档的那几个。
+COMMA = "、，"
+
+
+def tidy_ja(text: str) -> str:
+    """按日语规范把一段文本收一遍：中文逗号 →「、」、标点前后的全角空格去掉、
+    中文省略号（连着的全角句点）→「…」。
+
+    **故意逐字扫、不复用 `extract_epub.normalize_ja`**：闸门要能独立复算一遍，
+    抽取脚本写错了这里才拦得住。两边是否真的等价，由下面那条「日语标点已收干净」
+    兜住——收过的文本再收一遍还是它自己，不一致就会 FAIL。
+    """
+    chars: list[str] = []
+    quoted = False
+    for index, char in enumerate(text):
+        if char == "\u201c":
+            quoted = True
+        elif char == "\u201d":
+            quoted = False
+        elif not quoted and char == "\uff0c":
+            # 引号里的是被引用的中文，逗号一个都不动
+            char = "\u3001"
+        # 注意 text[index + 1: index + 2] 到末尾会是空串，而 "" in PUNCT 恒真——
+        # 那会把句末的全角空格也一并吞掉，所以先要它有内容。
+        if char == "\u3000" and text[index + 1: index + 2] and text[index + 1] in PUNCT:
+            continue                                     # 标点前面不站空格
+        if char == "\u3000" and chars and chars[-1] in COMMA:
+            continue                                     # 读点后面也不站空格
+        chars.append(char)
+
+    text = "".join(chars)
+    while "\uff0e\uff0e" in text:
+        text = text.replace("\uff0e\uff0e", "\u2026")
+    return text.replace("\u2026\uff0e", "\u2026\u3002")
 
 
 # ---------------------------------------------------------------- 独立读 EPUB
@@ -180,16 +221,23 @@ def check_lessons(lessons: list[dict]) -> None:
 
     # 完整性与记号残留
     texts: list[str] = []
+    ja_texts: list[str] = []
     for lesson in lessons:
         texts.append(seg_text(lesson["title_ja"]))
         texts.append(lesson["title_zh"])
+        ja_texts.append(seg_text(lesson["title_ja"]))
         for section in lesson["sections"]:
             texts.append(seg_text(section["title_ja"]))
+            ja_texts.append(seg_text(section["title_ja"]))
             if section["subtitle_ja"]:
                 texts.append(seg_text(section["subtitle_ja"]))
+                ja_texts.append(seg_text(section["subtitle_ja"]))
             texts.append(section["title_zh"])
             for sentence in section["sentences"]:
                 texts.append(seg_text(sentence["ja"]))
+                ja_texts.append(seg_text(sentence["ja"]))
+                if sentence["speaker"]:
+                    ja_texts.append(sentence["speaker"])
                 texts.append(sentence["zh"])
                 if any(seg["t"] == "" for seg in sentence["ja"]):
                     texts.append("__EMPTY_SEG__")
@@ -199,6 +247,18 @@ def check_lessons(lessons: list[dict]) -> None:
     check(not leftover, f"没有没转掉的记号（{leftover[:3]}）")
     check(not any(t == "__EMPTY_SEG__" for t in texts), "没有空片段")
     check(not any(t == "__EMPTY_READING__" for t in texts), "没有空读音")
+
+    # 日语标点。中文译文里的「，」是中文的，不查；只查日语那一侧。
+    dirty = [t[:40] for t in ja_texts if tidy_ja(t) != t]
+    check(not dirty, f"日语标点已收干净（，→、／标点不贴空格／…）（残留 {dirty[:3]}）")
+
+    # 说话人两端不该垫空格：EPUB 有 58 处写成「李　：」，界面上就是「李　：」。
+    # 「Ａ　甲」中间那个是内容，不算。
+    speaker_pad = [
+        (l["id"], x["speaker"]) for l in lessons for s in l["sections"] for x in s["sentences"]
+        if x["speaker"] and x["speaker"] != x["speaker"].strip("\u3000 ")
+    ]
+    check(not speaker_pad, f"说话人两端没有空格（异常 {speaker_pad[:3]}）")
 
     speaker = sum(1 for l in lessons for s in l["sections"] for x in s["sentences"] if x["speaker"])
     results.append(f"      —— 带说话人的句子 {speaker} 条")
@@ -246,7 +306,7 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
-    parser = argparse.ArgumentParser(description="体检 BingoReader 抽出来的课程数据")
+    parser = argparse.ArgumentParser(description="体检 BingoJP 抽出来的课程数据")
     parser.add_argument("--data-dir", type=Path, default=APP / "data", help="JSON 所在目录（默认 %(default)s）")
     parser.add_argument("--epub-dir", type=Path, default=APP / "data" / "epub",
                         help="两本 EPUB 所在目录（默认 %(default)s）")
@@ -267,13 +327,14 @@ def main() -> None:
     check_vocab(vocab["lessons"], epub_vocab_facts(args.epub_dir / WORD_EPUB))
     results.append("")
 
-    # 两本书的课名基础文本逐课一致
+    # 两本书的课名基础文本逐课一致。两边的原文都要先按日语标点收一遍——
+    # 抽出来的 JSON 是收过的，EPUB 原文没（见 extract_epub 的 normalize_ja）。
     text_titles = epub_titles(args.epub_dir / TEXT_EPUB, "h2")
     word_titles = epub_titles(args.epub_dir / WORD_EPUB, "h1")
     json_titles = {l["id"]: seg_text(l["title_ja"]) for l in book["lessons"]}
     mismatch = [
         lesson_id for lesson_id in range(1, LESSON_COUNT + 1)
-        if not (text_titles[lesson_id] == word_titles[lesson_id] == json_titles[lesson_id])
+        if not (tidy_ja(text_titles[lesson_id]) == tidy_ja(word_titles[lesson_id]) == json_titles[lesson_id])
     ]
     check(not mismatch, f"两本书课名基础文本逐课一致（不一致 {mismatch[:3]}）")
 

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { VocabWord } from "./types";
 
-const KEY = "bingoreader.memorized";
+const KEY = "bingojp.memorized";
 
 export function wordKey(lessonId: number, word: VocabWord): string {
   const text = word.word.map((seg) => seg.t).join("");

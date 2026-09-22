@@ -8,6 +8,9 @@
  *
  *  「读音比汉字宽」的片段（`JC` → ジェーシー）尤其经不起删——那一段会缩短，
  *  整行可能重排成另一行数。藏起来就没有这个问题。
+ *
+ *  这个文件里还住着 `JaText`：不经过 Seg[] 的日语文本（课名、说话人）也走它，
+ *  为的是把全角空格统一收窄——见那个函数的说明。
  */
 
 import { Fragment } from "react";
@@ -17,6 +20,28 @@ const KATAKANA = /[\u30a1-\u30f6]/g;
 
 function toHiragana(text: string): string {
   return text.replace(KATAKANA, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60));
+}
+
+/** 全角空格（U+3000）。带捕获组 split，分隔符会留在结果里，不用另写扫描。 */
+const IDEO_SPACE = /(\u3000+)/;
+
+/** 日语文本：把每一段全角空格单独包一层（.sp-ja），收窄它的字宽——理由见
+ *  tokens.css 的 `--space-ja`。只有含空格时才拆：绝大多数文本原样返回，DOM 不多一个节点。 */
+export function JaText({ text }: { text: string }) {
+  if (!text.includes("\u3000")) return <>{text}</>;
+  return (
+    <>
+      {text.split(IDEO_SPACE).map((piece, index) =>
+        piece.startsWith("\u3000") ? (
+          <span className="sp-ja" key={index}>
+            {piece}
+          </span>
+        ) : (
+          <Fragment key={index}>{piece}</Fragment>
+        ),
+      )}
+    </>
+  );
 }
 
 interface SegmentsProps {
@@ -29,7 +54,7 @@ export function Segments({ segs, reading }: SegmentsProps) {
   return (
     <>
       {segs.map((seg, index) => {
-        if (!seg.r) return <Fragment key={index}>{seg.t}</Fragment>;
+        if (!seg.r) return <JaText key={index} text={seg.t} />;
         return (
           <ruby key={index}>
             {seg.t}

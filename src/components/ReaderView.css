@@ -9,15 +9,29 @@
       标题是结构。见 ReaderView.tsx 顶部的说明。
    2. 开关切换不许引起重排。注音靠 rt 的 visibility（Segments），
       中文靠 .line__zh 的 visibility——两处都只是「字的显隐」，
-      行盒高度、字宽一律不变。 */
+      行盒高度、字宽一律不变。
+
+   版面按设计稿量出来的三件事：
+     ① 节头是**线在上、名在下**（线正中一朵朱梅，名压在枯茶笔扫上）；
+     ② 正文比标题让进一格（字下げ），说话人回退到标题那一列；
+     ③ 纸的右上角有枝花、右下角有一幅水墨——那是**纸上的画**，不跟着正文滚。 */
 
 .reader {
-  position: relative;   /* 中缝那两半道软影（::before / ::after）的定位父级 */
+  position: relative;   /* 中缝那两半道软影、以及两幅画（.reader__art）的定位父级 */
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-width: 0;
   background-color: transparent;
+
+  /* 中间这一栏的**字号与行距比稿子再紧一档**（一屏多读两三句）。
+     稿上换算过来是 正文 21 / 标题 27 / 节名 16.8 / 译文 15，
+     这里一档收到 17.5 / 22 / 14.5 / 13。只改**这一栏**的局部令牌——
+     目次页与生词表各自用的是全局那一套，不被牵连。 */
+  --fs-body: 1.09375rem;  /* 17.5 · 课文正文（全局 21） */
+  --fs-title: 1.375rem;   /* 22 · 课文标题（全局 27） */
+  --fs-sec: 0.90625rem;   /* 14.5 · 节名（全局 16.8） */
+  --fs-zh: 0.8125rem;     /* 13 · 译文（全局 15） */
 }
 
 /* ---------------------------------------------------------------- 中缝 · 对面那半
@@ -27,8 +41,7 @@
        所以贴着缝先有一道见光的亮，再落进影里；
      · 右边（生词页）翻起来 → 课文这一栏是卷下去的那一半，只有半道软影。
    两半都画在 .reader 上，但两页是同一个折：对面那页没翻开时，这道影没有来处，
-   所以平时 opacity: 0，由 .app__body[data-rail] / [data-vocab] 打开（见 App.css）。
-   淡入淡出时长 = 面板滑动的时长，开合时影子和纸一起走。 */
+   所以平时 opacity: 0，由 .app__body[data-rail] / [data-vocab] 打开（见 App.css）。 */
 .reader::before,
 .reader::after {
   content: "";
@@ -41,7 +54,6 @@
   transition: opacity var(--dur-3) var(--ease);
 }
 
-/* 翻起来的那一半：见光的一道 + 影 */
 .reader::before {
   left: 0;
   background-image:
@@ -49,31 +61,62 @@
     linear-gradient(to right, var(--fold-soft), transparent 30px);
 }
 
-/* 卷下去的那一半：只有影 */
 .reader::after {
   right: 0;
   background-image: linear-gradient(to left, var(--fold-soft), transparent);
 }
 
+/* ---------------------------------------------------------------- 纸上的两幅画
+   从设计稿上整块抠下来的（右上花枝 x 960..1112 y 146..276、
+   右下水墨 x 1000..1148 y 596..866）。两张都**跨过这一栏的右缘**伸进中缝，
+   稿子上就是这样——所以用负的 right 让它探出去。
+
+   z-index: 0 + 滚动层 z-index: 1：它们是印在纸上的，永远压在字**下面**；
+   也不跟着滚（不进 .reader__scroll）。 */
+.reader__art {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+/* 两枚都**贴着这一栏的右缘**摆——那一栏的右缘就是折缝，也就是稿上切画的地方。
+   所以无论两栏怎么开合，画永远严丝合缝地接在对面的那一半上。
+   尺寸按稿子量（1579×996 → ×0.912）：右上那枝樱 x 1006..1088、y 132..292
+   → 74.8×145.9；右下水墨 x 1000..1088、y 596..864 → 80.3×244.4。
+   水墨的下缘收在 864 而不是撕口底：稿上纸面到 864 就完了，865 起是断边，
+   框进去画底下就会压一条黑边（这一栏的底正好落在 864）。 */
+.reader__art--branch {
+  top: 2.19rem;
+  right: 0;
+  width: 4.68rem;
+  height: 9.12rem;
+}
+
+.reader__art--sumi {
+  bottom: 0;
+  right: 0;
+  width: 5rem;
+  height: 15.28rem;
+}
+
 .reader__scroll {
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   min-height: 0;
-  /* 没有滚动条，用下沿一道渐隐说明「下面还有」，也让被裁断的半行化进纸里，
-     而不是像被刀切了。 */
+  /* 没有滚动条，用下沿一道渐隐说明「下面还有」，也让被裁断的半行化进纸里 */
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sp-8)), transparent 100%);
 }
 
 /* 版心：只有宽度，没有边框、没有底色。四周留白就是「天地头」。
-   下沿多留一截，滚动到底时最后一句不贴着地脚。
 
    宽度**按「这一栏最终有多宽」算**，不是按此刻的宽度：
-     · 两栏滑入滑出的那 460ms 里，课文栏是一格一格变窄的（宽度在动画）；
-     · 要是版心跟着它变，正文就得**每帧重新断行**——字在行里跳来跳去，
-       这正是「点展开按钮会抖」的根源，被卷面那一栏的宽度动画放大了整整半秒。
-     · 100cqw＝三栏的总宽（.app__body 是容器，见 App.css），它**全程不变**；
+     · 两栏滑入滑出的那 420ms 里，课文栏是一格一格变窄的（宽度在动画）；
+     · 要是版心跟着它变，正文就得**每帧重新断行**——字在行里跳来跳去。
+     · 100cqw＝三栏的总宽（.app__body 是容器），它**全程不变**；
        --panel-l / --panel-r 是两栏的**目标**宽度，点下去就到位、不参与动画。
-       两者相减＝课文栏的最终宽度。于是：栏在收窄，字早就按最终宽度排好了，
-       只是跟着版心一起往中间让——不抖，而且栏一到位，字正好贴满。
+       两者相减＝课文栏的最终宽度。于是：栏在收窄，字早就按最终宽度排好了。
 
    窄到算不出来时兜一个底（12rem），别让 max-width 落到负数。 */
 .reader__inner {
@@ -81,61 +124,41 @@
   max-width: var(--measure);
   max-width: min(var(--measure), max(12rem, calc(100cqw - var(--panel-l) - var(--panel-r))));
   margin: 0 auto;
-  /* 天地头收窄一档：字变小之后，同样的纸面要装下更多行——左右各让出 8px，
-     正文那一栏就宽出一档（一行多两三个字），一屏也多挤进一两句。 */
-  padding: var(--sp-3) var(--sp-6) var(--sp-8);
+  /* 天地头。设计稿的标题顶在 y 114（版心从 94 开始），所以再让 1.2rem 出来。
+     这里再收一档（见 .reader 里那段「紧凑」的说明）：一屏多读两三句。 */
+  padding: 0.7rem var(--sp-5) var(--sp-5);
 }
 
 /* ---------------------------------------------------------------- 卷头 · 课文标题
-   2.png 的版心最上方是「第 N 課　<日文课名>」。
-
-   **标题下面没有界栏，也没有那行「第 N 単元 · 共 N 句」**：
-   标题与「基本課文」之间隔着的应该是纸，不是一条线加一行注——线一压上去，
-   标题就成了表格的表头，纸也被切成两截。单元与句数在目次页里本来就有
-   （那里一课两行：日文 + 中文），不必在卷头再说一遍。
-
-   标题**不注音**（这里根本不加载读音）、**不翻译**（不挂 title_zh）——
-   课名的中文在目次页里，一课两行，那才是它该待的地方。 */
-
+   稿子：标题 30px 明朝体、下面**没有**中文那行（不采纳）、再下面一道通栏线。
+   那道线是第一节的节头线（见 .sec__rule），所以这里只留白。 */
 .reader__head {
   position: relative;
-  /* 界栏撤掉之后，标题与第一节之间就靠这一段留白——给得比原来宽一档，
-     让「基本課文」那一道淡墨笔扫自己当分隔带，而不是靠一条线。 */
-  margin-bottom: var(--sp-6);
+  margin-bottom: var(--sp-2);
 }
 
 .reader .reader__title {
   font-size: var(--fs-title);
   font-weight: 600;
-  line-height: 1.28;
-  letter-spacing: 0.035em;
+  line-height: 1.3;
+  /* 大字号收字距（字号越大越显得松），小字号放——不写一个通用值 */
+  letter-spacing: var(--track-title);
   color: var(--ink);
-}
-
-/* 节标题那条界栏中央的四瓣花。朱砂色只出现这一小点，
-   是「印刷用的记号」，不是状态。 */
-.sec__rule svg {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--accent);
-  opacity: 0.7;
 }
 
 /* 卷头水印：一枚压在版心外缘（右侧）顶部的大字印子。
    只是纸上的颜色、不是内容——所以 aria-hidden、不参与交互。 */
 .reader__watermark {
   position: absolute;
-  top: -0.35rem;
-  right: -0.25rem;
+  top: -0.5rem;
+  right: -0.3rem;
   font-family: var(--font-ui);
   font-size: clamp(3.25rem, 5.5vw, 4.5rem);
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0;
   color: var(--ink);
-  opacity: 0.04;
+  opacity: 0.035;
   pointer-events: none;
   user-select: none;
 }
@@ -171,7 +194,6 @@
   padding: 2px 4px;
 }
 
-/* 关闭键视觉很小，命中区用伪元素撑开 */
 .notice__close {
   position: relative;
   flex: 0 0 auto;
@@ -181,7 +203,7 @@
   height: 1.5rem;
   border-radius: var(--r-xs);
   color: var(--ink-3);
-  font-size: var(--fs-md);
+  font-size: var(--fs-jp);
   line-height: 1;
 }
 
@@ -197,21 +219,42 @@
 }
 
 /* ---------------------------------------------------------------- 节
-   节与节之间靠留白 + 节标题那条分隔带分开，不再另画通栏线：
-   两条线并排会打架。 */
+   节头＝**通栏线 + 一朵朱梅，线下面才是节名**（稿子的顺序）。
+   节与节之间靠这道线分开，不再另画第二条。 */
 
 .sec + .sec {
-  /* 节与节之间也收一档：正文密了，段间的空照着原来的给就会显散 */
-  margin-top: var(--sp-5);
+  margin-top: 0.9rem;
 }
 
-/* 节标题＝分隔带：节名压在一道**淡墨笔扫**上，后面接一条界栏细线 + 四瓣花。
-   2.png 的节名没有框——它是一道手工扫上去的墨，不是貼上去的題簽。 */
 .sec__head {
   display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-2);
+  flex-direction: column;
+  margin-bottom: 0.3rem;
+}
+
+/* 通栏发丝线。稿子上它比正文宽出一点点（左 420 / 正文 440），
+   所以用负 margin 让它两端各探出一格——线是「界栏」，不该和文字对齐。 */
+.sec__rule {
+  position: relative;
+  display: block;
+  height: 1px;
+  margin: 0 -0.9rem 0.5rem;
+  background: var(--rule-2);
+}
+
+/* 线正中那朵朱梅。稿子上每一道通栏线的中心都压着它。 */
+.sec__blossom {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  transform: translate(-50%, -50%);
+  color: var(--accent);
+  background: var(--paper);
+  border-radius: var(--r-full);
 }
 
 .reader .sec__ja {
@@ -223,85 +266,43 @@
   line-height: 1.5;
 }
 
+/* 节名压在一道枯茶笔扫上（paper-wash：从稿子抠下来的那一枚，
+   轮廓与右端那截收笔的尾巴都是图上原来的样子）。 */
+.sec__name {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.55rem;
+}
+
+.sec__wash {
+  position: absolute;
+  /* 笔扫比字大一圈：起笔在字左边、收笔在字右边拖出去一截 */
+  inset: -0.32rem -1.5rem -0.32rem -0.6rem;
+}
+
 .reader .sec__kind {
   position: relative;
-  /* 自成层叠上下文：下面 z-index:-1 的笔扫才能稳稳待在字后面、
-     又不会掉到卷面纸肌底下。 */
-  isolation: isolate;
-  padding: 0.14em 0.8em 0.12em 0.66em;
-  font-size: 1rem;
+  font-size: var(--fs-sec);
   font-weight: 600;
-  letter-spacing: 0.16em;
+  line-height: 1.35;
+  letter-spacing: 0.1em;
   white-space: nowrap;
   color: var(--ink);
 }
 
-/* 笔扫本体：一道横向的墨。两端用渐变收干（起笔淡、收笔更淡），
-   中间的边线靠不对称圆角做出手扫的起伏——不用 filter 也能看出是「擦」的。
-   形状全部来自单一 background + border-radius，任何 WebView 都能画对。 */
-.reader .sec__kind::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  left: -0.72em;
-  right: -0.4em;
-  top: -0.17em;
-  bottom: -0.13em;
-  border-radius: 44% 56% 38% 62% / 56% 64% 36% 44%;
-  background: linear-gradient(
-    94deg,
-    transparent 0,
-    var(--wash-2) 4%,
-    var(--wash) 17%,
-    var(--wash) 58%,
-    var(--wash-2) 84%,
-    transparent 99%
-  );
-  filter: blur(0.7px);
-  transform: rotate(-1.1deg);
-  pointer-events: none;
-}
-
-/* 收笔：右端拖出去的一小截尾巴，让笔扫不像一个圆角矩形 */
-.reader .sec__kind::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  left: 70%;
-  right: -1.6em;
-  top: 26%;
-  height: 44%;
-  background: linear-gradient(
-    92deg,
-    var(--wash-2) 0,
-    var(--wash) 24%,
-    var(--wash-2) 62%,
-    transparent 100%
-  );
-  filter: blur(1.2px);
-  transform: rotate(-0.6deg);
-  pointer-events: none;
-}
-
 /* 课文小标题（应用课文后面那个「出迎え」）：内容，用正文色 */
 .reader .sec__title {
-  font-size: 0.9375rem;
-  letter-spacing: var(--track-jp);
+  font-size: var(--fs-zh);
+  letter-spacing: var(--track-body);
   color: var(--ink-2);
 }
 
-/* 界栏横线，中央叠一枚四瓣花 */
-.sec__rule {
-  position: relative;
-  flex: 1 1 auto;
-  height: 1px;
-  background: var(--rule-2);
-}
-
 /* ---------------------------------------------------------------- 句子
-   紧凑是硬要求：句间隔 0、内缩压到最小，中文行固定 0.95rem 高。
-   一句（日文 + 译文）约 2.6rem——比最初省掉近一半的高度，
-   一屏能读到二十来句，纸面是满的。 */
+   稿子的句子是三段：注音 + 日文一行、中文一行、再空一段。
+   实测节奏：日文行高 30、中文行高 20、句间隔 26 —— 一句约 80px（窗口 1440 时）。
+
+   缩进：正文比标题让进一格（字下げ），说话人回退到标题那一列。 */
 
 .lines {
   display: flex;
@@ -309,68 +310,67 @@
   gap: 0;
 }
 
+.lines > li + li {
+  /* 句间隔放 margin 不放 padding：hover 的那块底色是「一条」，不是带一大段空的色块。
+     稿子的节奏是一句 90px（稿）≈ 82px（窗）：日文行 37 + 中文行 19 + 这一段。
+     按「更紧凑」收两档：0.8rem → 0.4rem，一屏多读两三句。 */
+  margin-top: 0.4rem;
+}
+
 .line {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
   width: 100%;
-  /* 上下各让 2px 出头：句与句之间只剩一道窄缝，行与行连成一片——
-     但还留着一点点内缩，hover 时那块底色是「一条」而不是「一片」。 */
-  padding: 0.14rem 0.7rem 0.16rem;
+  /* 上下各让一点点：句与句之间只剩一道窄缝，但 hover 时那块底色仍是「一条」 */
+  padding: 0.1rem 0.6rem 0.12rem;
   text-align: left;
   border-radius: var(--r-sm);
   color: var(--ink);
-  transition: transform var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+  transition: background-color var(--dur-1) var(--ease);
   /* 逐行入场：每句错开 18ms，只动 opacity + 一点位移 */
   animation: line-in 380ms var(--ease) backwards;
   animation-delay: calc(var(--i, 0) * 18ms);
 }
 
+/* 三态：常态不画底；悬停淡朱底；朗读中（播放）用同一族里更实的一档 */
 .line:hover {
-  background: var(--paper-3);
+  background: var(--accent-wash-2);
 }
 
 .line[data-playing] {
-  background: var(--accent-soft);
+  background: var(--accent-wash);
 }
 
-.line__icon {
-  flex: 0 0 auto;
+.line[data-pending] {
+  opacity: 0.55;
+}
+
+/* 朗读中的那朵朱梅：压在文字**外面**的缩进里，绝对定位，不占布局 */
+.line__mark {
+  position: absolute;
+  left: 0.15rem;
+  top: 0.35rem;
   display: grid;
   place-items: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-top: 0.3em;
-  color: var(--ink-3);
-  /* 平时藏着，hover / 播放时出现——课文本身才是主角。
-     位置**始终占着**（只是 opacity 0），否则 hover 时整行会横移。 */
-  opacity: 0;
-  transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
-}
-
-.line:hover .line__icon,
-.line:focus-visible .line__icon,
-.line[data-playing] .line__icon,
-.line[data-pending] .line__icon {
-  opacity: 1;
-}
-
-.line[data-playing] .line__icon {
+  width: 0.95rem;
+  height: 0.95rem;
   color: var(--accent);
+  animation: mark-in var(--dur-2) var(--ease);
 }
 
-.line[data-pending] .line__icon {
-  color: var(--ink-2);
-  animation: line-pulse 1s ease-in-out infinite alternate;
+.line[data-pending] .line__mark {
+  opacity: 0.6;
 }
 
-@keyframes line-pulse {
+@keyframes mark-in {
   from {
-    opacity: 0.35;
+    opacity: 0;
+    transform: scale(0.7);
   }
   to {
     opacity: 1;
+    transform: none;
   }
 }
 
@@ -379,40 +379,71 @@
   flex-direction: column;
   gap: 0;
   min-width: 0;
+  /* 字下げ：正文比标题让进一格 */
+  padding-left: 1.7rem;
 }
 
-/* 日文正文：15px（`--fs-base`）。原来用 17px 的 `--fs-md`——那一档留给卷头、
-   单元名这些「大字」，正文自己降一档：一行排得下更多字，整块读起来是满的。
-   行高也跟着收到 1.38：字小了，行距再照原来给，句子之间就空了。 */
+/* 日文正文。稿上 23px × 0.912 ≈ 21，这里收一档到 19（见 .reader 的说明）。 */
 .reader .line__ja {
-  font-size: var(--fs-base);
-  line-height: 1.38;
-  letter-spacing: var(--track-jp);
+  font-size: var(--fs-body);
+  /* 行高比正文默认（1.45）紧一档：ruby 的 rt 会**额外**把行盒撑高一个 rt 的高度，
+     照 1.45 给，一句就比稿子高出十来像素。1.28 + rt ≈ 这里要的行距。 */
+  line-height: 1.28;
+  letter-spacing: var(--track-body);
 }
 
+/* 说话人回退到标题那一列。用负 margin：说话的还是同一行，只是「挂」在行首。 */
 .line__speaker {
-  margin-right: 0.1em;
+  margin-left: -1.7rem;
+  margin-right: 0.35em;
   color: var(--ink-2);
 }
 
 /* 中文对照行：**常驻**。data-off 只是把字藏起来（visibility），
-   行盒照样占位——所以切「中文」开关时正文一行都不会挪。
-   高度写死 0.95rem：比日文行小一档，又刚好等于它自己的行盒，
-   于是「日文 + 译文」的高度完全由字号决定，不再有额外的空。 */
+   行盒照样占位——所以切「中文」开关时正文一行都不会挪。 */
 .line__zh {
-  min-height: 0.95rem;
-  font-size: 0.75rem;
-  line-height: 1.26;
+  min-height: 0.9rem;
+  font-size: var(--fs-zh);
+  line-height: 1.3;
+  letter-spacing: 0.02em;
   color: var(--ink-2);
-  letter-spacing: 0.01em;
 }
 
 .line__zh[data-off] {
   visibility: hidden;
 }
 
+/* ---------------------------------------------------------------- 窄窗
+   窗口一窄，字下げ与句间隔各收一档——版心已经让过位了，再按原样缩进就只剩几个字。
+   字号那四条挂在 **.reader** 上（不是 :root）：正文的字号是这一栏自己的局部令牌
+   （见文件头），挂在 :root 上会被 .reader 自己那一条盖掉、等于没写。 */
+@media (max-width: 1240px) {
+  .reader {
+    --fs-body: 1rem;        /* 16 */
+    --fs-title: 1.25rem;    /* 20 */
+    --fs-sec: 0.84375rem;   /* 13.5 */
+    --fs-zh: 0.75rem;       /* 12 */
+  }
+
+  .line__main {
+    padding-left: 1.15rem;
+  }
+
+  .line__speaker {
+    margin-left: -1.15rem;
+  }
+
+  .lines > li + li {
+    margin-top: 0.35rem;
+  }
+
+  .reader__art--branch {
+    display: none; /* 窄窗里花枝会压到标题，撤掉 */
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .line[data-pending] .line__icon {
+  .line__mark {
     animation: none;
   }
 }

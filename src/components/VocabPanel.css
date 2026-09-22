@@ -5,7 +5,9 @@
 
    一行的排布纪律（这条是硬要求）：
      读音（ruby）压在该汉字正上方 → 单词 → 中文靠最右。
-   「假名单独一列」的写法不要用：注音永远在单词上方，不在旁边。 */
+   「假名单独一列」的写法不要用：注音永远在单词上方，不在旁边。
+
+   页头：枯茶笔扫 + 一枚「単語」+ 笔扫左下挑出的一枝朱梅 + 右端一枚小牌。 */
 
 .vocab {
   position: relative;
@@ -27,7 +29,8 @@
   flex: 0 0 auto;
   width: var(--coach-w);
   height: 100%;
-  background-color: var(--paper-vocab);
+  /* **自己不铺纸色**：颜色由 .makimono__pages 在**纸肌之下**给（见 App.css）——
+     铺在这里会把纸肌盖掉，三页就成了三种「平色」。 */
   /* 中缝（与课文那一栏之间）：与目次页同一道折缝，镜像过来——
      压痕压在这一页的**左缘**。这一页是从折痕上**翻起来**的那一半，
      所以缝内侧先有一道见光的亮、再落进影里；对面（课文那一栏）往下卷，
@@ -46,33 +49,93 @@
   transform: translateX(100%);
 }
 
-/* ---------------------------------------------------------------- 头部
-   只剩标题：**收起键搬到页脚**（与目次页同一枚、同一位置）。
-   头下也不画线——那一横是「上面一条横」，页头不是表头。 */
+/* ---------------------------------------------------------------- 页头
+   一枚压在枯茶笔扫上的「単語」，右端一枚细茶线圆角小牌（第 N 単元・第 M 課）。 */
+
+/* 插画：都贴在折缝一侧（这一页的左缘）。左边那一条是折缝的空白，正文不会压到它。 */
+.vocab__art {
+  position: absolute;
+  left: 0;
+  z-index: 0;
+  opacity: 0.9;
+}
+
+/* 右上那枝樱的右半：稿上它跨着折缝，右边这半落在生词页，紧贴这一页的左缘。
+   宽度＝稿上 1088..1132 那 44px（×0.912）：再往右（1138 起）是稿上的**纸堆**竖带，
+   而框只有 160 行高——框进去就是一条上下都齐着断的亮带（这一页的折缝本来由
+   .vocab__inner 的渐变画）。画本身到 1115 就完了。 */
+.vocab__art--branch {
+  top: 2.2rem;
+  width: 2.51rem;
+  height: 9.12rem;
+}
+
+/* 左下那幅水墨的右半（雪屋、屋前的水、那方朱印）。
+   左缘＝折缝（这一页的左缘），右缘同样收在纸堆之前（1088..1140），
+   下缘收在纸面真正的下缘 864——稿上 865 起是撕口的断边。 */
+.vocab__art--house {
+  bottom: 0;
+  width: 2.96rem;
+  height: 15.28rem;
+}
 
 .vocab__head {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   flex: 0 0 auto;
-  padding: var(--sp-3) var(--sp-3) var(--sp-2) var(--sp-4);
+  /* 稿子上这一页的字离折缝很远（实测 126px，稿 → 115px，窗）：
+     生词页左边留一大片空白，读起来才像书页，不像抽屉。
+     这里取 4.2rem：够让开那半幅插画，也不至于把一栏挤成一条。 */
+  padding: 1.1rem 2.2rem 0.9rem 4.2rem;
 }
 
+/* 笔扫比字大一圈：起笔在字左边、收笔在字右边拖出去一截。
+   稿子上笔扫的左下角还挑出一枝朱梅——它压在笔扫**外面**一点。 */
 .vocab__title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0.15rem 0.5rem 0.2rem;
+}
+
+.vocab__wash {
+  position: absolute;
+  inset: -0.45rem -1.7rem -0.45rem -0.75rem;
+}
+
+.vocab__blossom {
+  position: absolute;
+  left: -0.65rem;
+  bottom: -0.5rem;
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.vocab__word {
+  position: relative;
+  font-family: var(--font-jp);
+  font-size: var(--fs-brand);
+  font-weight: 600;
+  line-height: 1.1;
+  /* 大字号收字距 */
+  letter-spacing: 0.02em;
   color: var(--ink);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: var(--paper-3);
 }
 
-/* ---------------------------------------------------------------- 页脚
-   与目次页**同一枚**「收起」（样式在 App.css 的 .panel-foot）。
-   这一页在右，键贴**左端**（靠课文那一侧），与目次页那枚镜像对称。 */
-
-.vocab__foot {
-  justify-content: flex-start;
-  padding: 0 var(--sp-3) 0 var(--sp-4);
+/* 小牌会先被挤扁：它是右端那一枚，正文比它重要 */
+.vocab__badge {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 /* ---------------------------------------------------------------- 词表
@@ -84,16 +147,18 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  /* 下沿留一档就够：再往下是页脚，收起键自己会撑开那一段空 */
-  padding: var(--sp-1) var(--sp-2) var(--sp-3);
+  position: relative;
+  z-index: 1;
+  /* 下沿留一档就够：这一页里没有页脚了（收起交给窗口外缘的书签） */
+  padding: var(--sp-1) 2.2rem var(--sp-4) 4.2rem;
   /* 没有滚动条了，用下沿渐隐提示「下面还有」 */
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sp-8)), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sp-6)), transparent 100%);
 }
 
 /* 一行＝一个容器 + 两个按钮。不用按钮套按钮：朗读与「已记住」各有各的语义，
    也让勾选能在 hover 时单独出现。逐行入场，前 24 行有错峰。 */
 .vrow {
-  position: relative; /* 「已记住」的删除线挂在它上面 */
+  position: relative; /* 「已记住」的删除线、朗读中的朱梅挂在它上面 */
   display: flex;
   align-items: center;
   gap: var(--sp-1);
@@ -101,18 +166,20 @@
   padding: 3px var(--sp-2);
   border-radius: var(--r-sm);
   color: var(--ink);
-  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
   animation: line-in 420ms var(--ease) backwards;
   animation-delay: calc(var(--i, 0) * 14ms);
 }
 
+/* 三态：常态不画底；悬停淡朱底；朗读中用更实的一档 */
 .vrow:hover {
-  background: var(--paper-3);
+  background: var(--accent-wash-2);
 }
 
-/* 播放中：淡朱底 + 停止图标，不再有进度条 */
 .vrow[data-playing] {
-  background: var(--accent-soft);
+  background: var(--accent-wash);
 }
 
 .vrow[data-pending] {
@@ -121,6 +188,7 @@
 
 /* 朗读按钮：撑满整行，日语与中文仍旧一左一右 */
 .vrow__speak {
+  position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -132,9 +200,23 @@
   transition: transform var(--dur-1) var(--ease);
 }
 
+/* 朗读中的那朵朱梅：压在词的前面，绝对定位，不占布局 */
+.vrow__mark {
+  position: absolute;
+  left: 0.1rem;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: -0.42rem;
+  color: var(--accent);
+  animation: mark-in var(--dur-2) var(--ease);
+}
+
 /* 勾选：平时藏着，hover / 聚焦 / 已记住时才现身。
    视觉只有 22px，但用一层负 inset 的伪元素把可点范围撑到 30px。 */
-.vrow__mark {
+.vrow__mark-btn {
   position: relative;
   flex: 0 0 auto;
   display: grid;
@@ -144,27 +226,30 @@
   border-radius: var(--r-xs);
   color: var(--ink-3);
   opacity: 0;
-  transition: transform var(--dur-1) var(--ease), opacity var(--dur-1) var(--ease),
-    color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+  transition:
+    transform var(--dur-1) var(--ease),
+    opacity var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
 }
 
-.vrow__mark::before {
+.vrow__mark-btn::before {
   content: "";
   position: absolute;
   inset: -4px;
 }
 
-.vrow:hover .vrow__mark,
-.vrow__mark:focus-visible {
+.vrow:hover .vrow__mark-btn,
+.vrow__mark-btn:focus-visible {
   opacity: 1;
 }
 
-.vrow__mark:hover {
-  color: var(--ink-2);
+.vrow__mark-btn:hover {
+  color: var(--accent);
   background: var(--paper);
 }
 
-.vrow[data-memorized] .vrow__mark {
+.vrow[data-memorized] .vrow__mark-btn {
   opacity: 1;
   color: var(--accent);
 }
@@ -198,13 +283,14 @@
 .vrow .vrow__ja {
   flex: 0 1 auto;
   min-width: 0;
-  font-size: var(--fs-base);
-  line-height: 1.55;
-  letter-spacing: var(--track-jp);
+  font-size: var(--fs-jp);
+  /* 紧一档：ruby 的 rt 还会再加一个 rt 的高度。
+     稿子上两条词之间只有 32px（稿）≈ 29px（窗），1.5 给出来就成了 38。 */
+  line-height: 1.15;
+  letter-spacing: var(--track-body);
 }
 
-/* 注音本身：再点一次名，确保读音稳在**汉字上方**而不是基线旁。
-   有些 WebView 会把 rt 贴着基线摆，这里把 ruby 的位置钉死。 */
+/* 注音本身：再点一次名，确保读音稳在**汉字上方**而不是基线旁。 */
 .vrow__ja ruby {
   ruby-position: over;
   ruby-align: center;
@@ -212,7 +298,7 @@
 
 /* 词表比正文更密，注音再收小半档 */
 .vrow__ja rt {
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: var(--rt-scale-tight);
   line-height: 1.1;
   letter-spacing: 0.04em;
@@ -223,6 +309,38 @@
   margin-left: auto;
   text-align: right;
   color: var(--ink-2);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-zh);
   line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------- 窄窗
+   生词页在窄窗里收一档：字号与内缩一起减，一行才装得下「单词 + 中文」。 */
+@media (max-width: 1240px) {
+  .vocab__head {
+    padding: 0.9rem 1.4rem 0.75rem 2.8rem;
+  }
+
+  .vocab__list {
+    padding: var(--sp-1) 1.4rem var(--sp-4) 2.8rem;
+  }
+
+  .vocab__art {
+    display: none;
+  }
+
+  :root {
+    --fs-brand: 1.5rem;
+    --fs-jp: 0.9375rem;
+    --fs-zh: 0.8125rem;
+  }
+
+  .vocab__badge {
+    display: none; /* 窄到放不下那枚小牌了，撤掉——它只是注解，不是内容 */
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vrow__mark {
+    animation: none;
+  }
 }

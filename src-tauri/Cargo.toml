@@ -1,5 +1,5 @@
 [package]
-name = "bingoreader"
+name = "bingojp"
 version = "0.1.0"
 description = "把《新版中日交流标准日本语》初级上下册变成能点着听、能随手查词的读物"
 authors = ["bingoyes"]
@@ -7,7 +7,7 @@ edition = "2021"
 
 [lib]
 # `_lib` 后缀：Windows 上 bin 与 lib 同名会冲突（rust-lang/cargo#8519）。
-name = "bingoreader_lib"
+name = "bingojp_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

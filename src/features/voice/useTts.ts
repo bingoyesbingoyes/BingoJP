@@ -25,10 +25,7 @@ function reason(error: unknown): string {
 }
 
 export function useTts({ voiceId }: { voiceId: number | null }) {
-  const [health, setHealth] = useState<TtsHealth>("unknown");
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  /** 引擎版本号。假的 VOICEVOX 会报 0.0.0-mock，设置里要显出来。 */
-  const [version, setVersion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   /** 引擎起不来 / 合成失败的说明。不自动消失。 */
@@ -56,22 +53,17 @@ export function useTts({ voiceId }: { voiceId: number | null }) {
 
     const task = (async () => {
       healthRef.current = "starting";
-      setHealth("starting");
       try {
-        const engineVersion = await invoke<string>("voicevox_start_engine");
-        // 一起取，免得「显示可用但没有音色」这种半吊子状态
+        await invoke<string>("voicevox_start_engine");
+        // 引擎就绪后一起取音色，免得「显示可用但没有音色」这种半吊子状态
         const list = await invoke<Speaker[]>("voicevox_speakers");
         speakersRef.current = list;
         setSpeakers(list);
-        setVersion(engineVersion);
         healthRef.current = "ready";
-        setHealth("ready");
         setNotice(null);
         return list;
       } catch (error) {
         healthRef.current = "offline";
-        setHealth("offline");
-        setVersion("");
         // 启动时静默失败：用户还没要求出声，不该一开窗就顶一条错误；
         // 等他点句子 / 点重试时再把这个原因摆出来。
         if (!quiet) setNotice(`没能启动朗读引擎。${reason(error)}`);
@@ -174,9 +166,7 @@ export function useTts({ voiceId }: { voiceId: number | null }) {
   const dismiss = useCallback(() => setNotice(null), []);
 
   return {
-    health,
     speakers,
-    version,
     pending,
     playing,
     notice,

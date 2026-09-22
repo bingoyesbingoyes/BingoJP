@@ -1,14 +1,10 @@
-/** 卷面上的「附件」：两枚常驻页签、单元选择、以及右下那块设置区。
+/** 卷面上的「附件」：单元选择，以及右下那块设置区。
  *
- *  这几块都不属于三栏正文，而是**异形窗本身的一部分**：
- *   · 页签钉在卷面左右边缘，面板滑走、滑回都不动它——滑动的面板不能没有抓手；
- *   · 两枚纸片在卷面下方、和卷面之间隔着一道透明的水面，是 2.png 最鲜明的轮廓特征。
- *     （2.png 版心正下方还有一枚「1 / 8」，但那是写在水面上的、底下没有纸——
- *     本应用底下是桌面，没有纸就一片糊，所以整块不做：课次切换交给目次页。）
+ *  这两块都不属于三栏正文，而是**异形窗本身的一部分**：两枚纸片浮在卷面下方，
+ *  和卷面之间隔着一道夜色。见 App.css 的 .frag。
  *
- *  右下那块的形制严格照 2.png：五枚**花边朱印圆钮**（Seal.tsx 的 SealRing），
- *  图标压在印里、名称写在印下，字距松开。音色也是一颗同样的钮——
- *  点开才在上方升起一张小笺列音色，平时不占地方（见 VoiceTool）。
+ *  两枚书签页签（左右两栏的滑入滑出）已经搬去 EdgeTab.tsx 了——
+ *  它们钉在**窗口外缘**，不跟着版心排，所以和纸片不是一类东西。
  *
  *  样式写在 styles/App.css（外壳样式表）里，与本目录其它组件各自带 CSS 的做法不同：
  *  它们画的是窗口的形状，不是面板的内容。
@@ -17,51 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Prefs, Speaker } from "../features/types";
-import { SealRing } from "./Seal";
-
-/* ===========================================================================
-   常驻页签
-   =========================================================================== */
-
-interface EdgeTabProps {
-  /** rail＝左侧目次页；vocab＝右侧生词页。决定贴哪条边、长什么样。 */
-  kind: "rail" | "vocab";
-  open: boolean;
-  onToggle: () => void;
-  label: string;
-  /** 生词页签上那枚词数角标。目次页签不传。 */
-  count?: number;
-}
-
-export function EdgeTab({ kind, open, onToggle, label, count }: EdgeTabProps) {
-  return (
-    /* 页签是**被面板盖住的那一枚**：面板展开时它藏起来（收起的入口在面板里），
-       面板滑走后才浮出来——所以它只在收起态可见、可点。 */
-    <button
-      type="button"
-      className={`edge-tab edge-tab--${kind}`}
-      data-shown={!open || undefined}
-      onClick={onToggle}
-      disabled={open}
-      aria-expanded={open}
-      aria-label={label}
-    >
-      {kind === "rail" ? (
-        /* 目次：箭头指向「纸的方向」——点它就把目次页拉回来 */
-        <>
-          <Chevron dir="right" />
-          <span className="edge-tab__word">目次</span>
-        </>
-      ) : (
-        <>
-          <ListIcon />
-          <span className="edge-tab__word">単語</span>
-          {typeof count === "number" ? <span className="edge-tab__count mono">{count}</span> : null}
-        </>
-      )}
-    </button>
-  );
-}
+import { Blossom, SealRing } from "./Seal";
 
 /* ===========================================================================
    左下纸片 · 单元选择
@@ -69,18 +21,22 @@ export function EdgeTab({ kind, open, onToggle, label, count }: EdgeTabProps) {
 
 interface UnitStepperProps {
   unit: number;
-  /** 全册共几个单元。页脚那行小字「3 / 12」用。 */
+  /** 全册共几个单元。那行小字「3 / 12」用。 */
   total: number;
   canPrev: boolean;
   canNext: boolean;
   onStep: (delta: number) => void;
 }
 
+/** 稿子上这一排的头一枚是一朵**朱梅花**，然后才是 ‹ 単元選択 › 与「2 / 12」。
+ *  位置固定在卷面下方这块纸片上。 */
 export function UnitStepper({ unit, total, canPrev, canNext, onStep }: UnitStepperProps) {
   return (
     /* 纸片本身就是按钮组，所以这里是 div：按钮只出现在箭头与标签上 */
     <div className="frag frag--unit paper-panel">
-      <span className="frag__marks" aria-hidden />
+      <span className="frag__marks" aria-hidden>
+        <Blossom size={22} />
+      </span>
       <div className="unit-step">
         <button
           type="button"
@@ -93,7 +49,7 @@ export function UnitStepper({ unit, total, canPrev, canNext, onStep }: UnitStepp
         </button>
 
         <span className="unit-step__label">
-          {/* 2.png 的字样：不是「第 N 单元」，而是这组控件的名字 */}
+          {/* 稿子上的字样：不是「第 N 单元」，而是这组控件的名字 */}
           <span className="unit-step__word">単元選択</span>
           <span className="unit-step__now mono">
             {unit} <i>/</i> {total}
@@ -178,7 +134,6 @@ export function ToolShard({ prefs, update, speakers }: ToolShardProps) {
  *
  *  需求：音色不要常驻一个下拉把自己摊在纸面上占体积——平时只留一颗钮，
  *  点开才在上方升起一张小笺列出可选音色，选完即收。
- *  （原来那根浅色长条就是原生 select 的默认外观，既占地方又和纸面不合。）
  *
  *  收起方式：选中一项 / 点笺外 / 按 Esc。 */
 function VoiceTool({
@@ -197,8 +152,7 @@ function VoiceTool({
 
   /* 正在用的那一枚**排在最上面**。VOICEVOX 一装几十条，列表本来就是按引擎的
      顺序给的：当前音色常常要滚到中段才找得到，选中之后也看不出选了什么。
-     这里只把当前项提到第一位，其余**保持原来的顺序**——挑音色靠的是位置的记忆，
-     换个排序法，每次都得重新找。 */
+     这里只把当前项提到第一位，其余**保持原来的顺序**——挑音色靠的是位置的记忆。 */
   const ordered = useMemo(() => {
     if (current == null) return speakers;
     const at = speakers.findIndex((speaker) => speaker.id === current);
@@ -275,6 +229,12 @@ function VoiceTool({
                         setOpen(false);
                       }}
                     >
+                      {/* 选中态左端那朵朱梅（稿子的「选中状态」示意里就是它） */}
+                      {active ? (
+                        <span className="voice-menu__mark" aria-hidden>
+                          <Blossom size={13} />
+                        </span>
+                      ) : null}
                       <span className="voice-menu__name">{speaker.name}</span>
                       {active ? (
                         <span className="voice-menu__tick" aria-hidden>
@@ -296,8 +256,7 @@ function VoiceTool({
 }
 
 /* 一枚朱印小钮。
-   `hint` **只给读屏**（aria-label）——界面上不再有 hover 才浮出来的说明文字：
-   钮上已经写了名字（注音 / 中文 / 生词 / 目次），点了就是开关，不需要再解释一遍。 */
+   `hint` **只给读屏**（aria-label）——界面上不再有 hover 才浮出来的说明文字。 */
 function Tool({
   on,
   onToggle,

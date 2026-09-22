@@ -48,6 +48,11 @@ OUT = ROOT / "public"
 # 纸卷占的那一条：卷面要在这里切开，否则卷面会把纸卷盖掉
 ROLLER_RIGHT = 104
 
+# 纸片轮廓那一道高斯的 sigma（**3× 网格上的像素**，见 soften）：
+#   贴图在窗口上约 0.3 倍重采样，2.1 换过去是 10%→90% 约 1.6px 的坡，
+#   与卷面（trace_design.py 的 1.4 @2×）同一档软度。
+SHARD_SOFTEN = 2.1
+
 # 认领卷面用的种子点（y, x）：取在纸**内部**，避开文字造成的孔
 SHEET_SEED = (400, 400)
 
@@ -72,11 +77,34 @@ def shard_mask(rgb: np.ndarray) -> np.ndarray:
     return ndimage.binary_opening((lum > 100) & (warm > 0), structure=disk(2))
 
 
-def antialias(mask: np.ndarray) -> np.ndarray:
-    """二值掩码 → 跨 1px 的抗锯齿 alpha。边界落在原轮廓上，不胖不瘦。"""
+def antialias(mask: np.ndarray, soft: float = 1.0) -> np.ndarray:
+    """二值掩码 → 抗锯齿 alpha。边界落在原轮廓上，不胖不瘦。
+
+    `soft` 是过渡带的**宽度**（像素）。默认 1 是「一像素宽」的硬边——真机上它就是
+    一道看得见的台阶（设计稿 1579 宽，窗口 1440 与放大到 2160 时都在重采样这张
+    mask，一像素的过渡被拉成一格一格的锯齿）。纸片这种小件给 2 就够软了。
+    """
     inside = ndimage.distance_transform_edt(mask)
     outside = ndimage.distance_transform_edt(~mask)
-    return np.clip(0.5 + inside - outside, 0, 1)
+    return np.clip(0.5 + (inside - outside) / soft, 0, 1)
+
+
+def soften(alpha: np.ndarray, sigma: float) -> np.ndarray:
+    """给 alpha 再糊一道高斯，把重采样露出来的**台阶**抹平。
+
+    与 trace_design.py 的 soften 是同一条：光靠 `antialias` 那道线性过渡盖不住
+    设计稿自己的 1px 硬边——纸片贴图在窗口上是 0.3 倍重采样，1px 的台步原样留着，
+    桌面上看就是一圈锯齿。sigma 是按**标准差**给的，软出来是一道连续的坡。
+    """
+    return ndimage.gaussian_filter(alpha, sigma)
+
+
+def supersample(mask: np.ndarray, factor: int = 2) -> np.ndarray:
+    """把二值掩码**平滑放大** N 倍再二值化：轮廓落在更细的网格上，
+    边缘本就带着设计稿的毛边，放大后不再是整数倍的台阶（窗口再放大也不糊）。"""
+    im = Image.fromarray((mask * 255).astype(np.uint8), "L")
+    im = im.resize((mask.shape[1] * factor, mask.shape[0] * factor), Image.BICUBIC)
+    return np.asarray(im).astype(float) / 255.0 > 0.5
 
 
 def tidy(blob: np.ndarray) -> np.ndarray:
@@ -161,10 +189,16 @@ def main() -> None:
         return
 
     report: list = []
-    save(antialias(sheet), (0, 0, W, H), "edge-sheet.png", report)
+    # **卷面轮廓不在这里写了**：新稿（new_design.png）的轮廓与 2.png 不同，
+    # 已经由 scripts/trace_design.py 生成 edge-sheet.png。两个脚本写同一个文件是坑，
+    # 这里只管两块纸片。
+    ss = 3  # 超采样倍数：轮廓落在三倍细的网格上，纸片的撕口不再是台阶
     for kind in sorted(shards):
         blob, box = shards[kind]
-        save(antialias(tidy(blob)), box, f"edge-{kind}.png", report)
+        grown = supersample(tidy(blob), ss)
+        # soft 5：在 1440 窗上约 1.4px 的线性过渡（纸片贴图与窗口基本 1:1）；
+        # 再叠一道 sigma 2.1 的高斯，把设计稿自己那 1px 的台步吃掉（见 soften）。
+        save(soften(antialias(grown, soft=5.0), SHARD_SOFTEN), tuple(v * ss for v in box), f"edge-{kind}.png", report)
 
     print("\n已写入 public/：")
     for name, _box, size, nbytes in report:

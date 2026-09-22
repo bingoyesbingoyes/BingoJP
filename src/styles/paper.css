@@ -1,33 +1,33 @@
 /* ===========================================================================
-   和纸肌
+   和纸肌 · 与「手作痕迹」的材料层
 
-   用法：给元素加 .paper-bg（整幅卷面）或 .paper-panel（两枚断片），
-   元素自己的 background-color 保持不动。贴图与纤维铺在 **::after 叠加层**上，
-   浓度由 --paper-alpha 一个令牌控制，不必重新生成 PNG。
+   从设计稿上抠下来的几件**痕迹**（见 scripts/trace_design.py）。
+   它们都是「纸上的印子」，不是控件，所以统一按材料处理：
 
-   两个要点：
+     .paper-panel               纸片上的肌理（纤维 + 颗粒），元素自己的底色不动
+     .paper-wash                枯茶笔扫：标题身后的那一道色块
+     .paper-band                选中的撕纸带：比纸暗一档的暗朱红
+     .paper-art                 手绘插画：花枝与水墨山水
+
+   三条用法上的纪律：
+
    1. `isolation: isolate` 让元素自成一个层叠上下文，::after 用 z-index:-1
       就能稳稳地待在「自己的底色之上、内容之下」，不用给每个子元素提层级。
-   2. 贴图挂在**不滚动**的元素上。滚动容器里放叠加层会跟着内容滚，
-      所以正文区的滚动交给内层，纸肌留在不滚动的卷面上
-      （.makimono__sheet）。目次页与生词页自己不铺纸肌——卷面已经铺过了，
-      再铺一道会重。
+   2. 贴图挂在**不滚动**的元素上。滚动容器里放叠加层会跟着内容滚。
+   3. **笔扫、撕纸带、插画都不参与交互状态**（hover / active / focus 只改颜色与描边）。
+      它们一律 pointer-events: none：一道水彩痕迹不该吃掉一次点击。
 
-   两条铁律不变：
-   - 纸肌不参与交互状态（hover / active / focus 只改颜色与描边）。
-   - 文字区不叠纸肌。
-
-   纹理分两层：颗粒贴图（scripts/make_grain.py 生成）+ 细竖纤维（和纸簀目），
+   纹理分两层：颗粒贴图 + 细竖纤维（和纸簀目），
    全部 multiply，浓度由 --paper-alpha 统一压住。
    =========================================================================== */
 
-.paper-bg,
+/* 卷面那一整幅的纸肌不在这里——它由 .makimono__mottle 单独铺（见 App.css）：
+   三页的纸色是另一层画的，纸肌必须盖在**纸色之上**，挂在卷面的 ::after 上会被盖掉。 */
 .paper-panel {
   position: relative;
   isolation: isolate;
 }
 
-.paper-bg::after,
 .paper-panel::after {
   content: "";
   position: absolute;
@@ -42,41 +42,108 @@
       transparent 1px 4px,
       rgb(0 0 0 / 0.03) 4px 6px,
       transparent 6px 11px
-    );
+    ),
+    url("/grain-panel.png");
   background-size: auto, 128px 128px;
   background-repeat: repeat;
   opacity: var(--paper-alpha);
   mix-blend-mode: multiply;
 }
 
-.paper-bg::after {
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      rgb(0 0 0 / 0.05) 0 1px,
-      transparent 1px 4px,
-      rgb(0 0 0 / 0.03) 4px 6px,
-      transparent 6px 11px
-    ),
-    url("/grain-bg.png");
+/* ---------------------------------------------------------------- 枯茶笔扫
+   设计稿的「设计元素」那一栏里，每一个标题都压在一道毛笔扫出来的茶色上：
+   単語、基本課文、初級上冊、単元選択 全是同一道笔扫。
+
+   这一枚是**从稿子上抠出来的 alpha**（public/wash-label.png，见 trace_design.py）：
+   轮廓、右端那截收笔的尾巴、边上几点飞白，全是图上原来的样子。
+   用 mask 而不是 img，是为了让颜色由令牌给（--wash），
+   纸肌还能从半透明的底下面透出来。
+
+   用法：把 .paper-wash 铺在标题的元素上（::before 或独立一层），
+   标题自己必须**提到它上面**（z-index 或 isolation）。 */
+.paper-wash {
+  background-color: var(--wash);
+  mask-image: url("/wash-label.png");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  pointer-events: none;
 }
 
-.paper-panel::after {
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      rgb(0 0 0 / 0.05) 0 1px,
-      transparent 1px 4px,
-      rgb(0 0 0 / 0.03) 4px 6px,
-      transparent 6px 11px
-    ),
-    url("/grain-panel.png");
+/* 宽一点的笔扫（単語 / 単元選択 那两枚比 基本課文 长）：横拉但不改比例，
+   笔扫本来就是一笔扫出来的，长一点短一点都成立。 */
+.paper-wash--wide {
+  mask-size: 100% 92%;
+  mask-position: center;
+}
+
+/* ---------------------------------------------------------------- 撕纸带
+   选中一行时垫在底下的那一条：稿子上是一条**手撕下来的暗朱红纸**，
+   上下缘都是毛的，右端还有几点飞白。
+
+   同样是抠出来的 alpha（public/band-select.png）。底色的合成色
+   （--band 盖在目次页纸上）与稿子实测的 #cbb0a6 差 3/255。 */
+.paper-band {
+  background-color: var(--band);
+  mask-image: url("/band-select.png");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- 纸上的插画
+   课文页右上那枝樱（跨着折缝，按折缝切成两半）、右下那幅水墨（松、雪屋、远山、水），
+   以及目次页右上那枝樱。这几枚是**带 alpha 的彩图**——RGB 就是稿子上的像素，直接用
+   background。
+
+   **不用 `mix-blend-mode: multiply`**：.makimono 上挂着入场动画，动画组把这一层
+   封在自成的组里，blend 的底是空的——乘算根本没落到纸上，画是按原样贴上去的。
+
+   让「补丁」消失、画又不被冲淡的是**抠图那一端的反解**（见 scripts/trace_design.py
+   的 ART_PAPER_SIGMA 那一段）：alpha ＝「这一像素里有几分之几是画」，
+   色 ＝ 局部纸色 +（稿子 − 局部纸色）/ alpha。于是
+     · alpha→0 的地方**真的透明**——纸的斑不再被涂成另一个颜色，
+       纸上不会浮出一个比周围亮/暗的方块；
+     · alpha 大的地方色就是稿子上那个色——墨是墨、粉是粉，不会再淡成一层影。
+   纸本身照旧从 .makimono__mottle 透上来（画在 .app 里，压在纸肌之上）。 */
+.paper-art {
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 课文页那半枝樱（折缝左侧） */
+.paper-art--branch {
+  background-image: url("/art-branch.png");
+}
+
+/* 生词页那半枝樱（折缝右侧） */
+.paper-art--branch-vocab {
+  background-image: url("/art-branch-vocab.png");
+}
+
+/* 目次页右上那一枝（整枝都在这一页里） */
+.paper-art--branch-rail {
+  background-image: url("/art-branch-rail.png");
+}
+
+.paper-art--sumi {
+  background-image: url("/art-sumi.png");
+}
+
+/* 生词页那一半：雪屋落在折缝右侧，所以它属于生词页，跟着生词页一起滑走 */
+.paper-art--house {
+  background-image: url("/art-house.png");
 }
 
 /* 纸肌只归 `prefers-contrast: more` 管：高对比模式下纹理退场，字优先。 */
 @media (prefers-contrast: more) {
-  .paper-bg::after,
   .paper-panel::after {
     display: none;
+  }
+
+  .paper-art,
+  .paper-wash {
+    opacity: 0.5;
   }
 }
