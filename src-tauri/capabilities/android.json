@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android",
+  "description": "Android 主窗口需要的基础能力。这一版只读不发声，也不拖窗口，所以只有 core:default：项目自己的命令（voicevox_* / tts_speak）本来就不必在这里声明。",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

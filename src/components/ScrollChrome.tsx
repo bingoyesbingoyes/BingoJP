@@ -78,16 +78,35 @@ interface ToolShardProps {
   prefs: Prefs;
   update: (patch: Partial<Prefs>) => void;
   speakers: Speaker[];
+  /** 这一版接不接朗读。不接（Android）时「音色」那枚钮整块不出现——
+   *  音色只归朗读用（它选的是 VOICEVOX 的说话人），没有朗读就没有它。 */
+  readAloud: boolean;
+  /** 生词页 / 目次页的开合。**由外面给**，不在这里就地 update：
+   *  紧凑版式里这两页是互斥的抽屉（开一个要顺带合上另一个），
+   *  那条规矩属于 App 的版式逻辑，不属于这块纸片。 */
+  onToggleVocab: () => void;
+  onToggleRail: () => void;
 }
 
-export function ToolShard({ prefs, update, speakers }: ToolShardProps) {
+export function ToolShard({
+  prefs,
+  update,
+  speakers,
+  readAloud,
+  onToggleVocab,
+  onToggleRail,
+}: ToolShardProps) {
   return (
     <div className="frag frag--tools paper-panel">
       {/* 音色与旁边四枚**同一形制的小钮**：平时只占一颗钮的位置，点开才升起小笺 */}
-      <VoiceTool voiceId={prefs.voiceId} speakers={speakers} onChange={update} />
+      {readAloud ? (
+        <>
+          <VoiceTool voiceId={prefs.voiceId} speakers={speakers} onChange={update} />
 
-      {/* 发丝缝：把「用什么声音读」和「怎么显示」分成两组 */}
-      <span className="frag__seam" aria-hidden />
+          {/* 发丝缝：把「用什么声音读」和「怎么显示」分成两组 */}
+          <span className="frag__seam" aria-hidden />
+        </>
+      ) : null}
 
       <div className="tool-row" role="group" aria-label="阅读设置">
         <Tool
@@ -110,7 +129,7 @@ export function ToolShard({ prefs, update, speakers }: ToolShardProps) {
 
         <Tool
           on={prefs.vocabOpen}
-          onToggle={() => update({ vocabOpen: !prefs.vocabOpen })}
+          onToggle={onToggleVocab}
           label="生词"
           hint="生词表：本课词笺从右侧滑入 / 滑出"
         >
@@ -119,7 +138,7 @@ export function ToolShard({ prefs, update, speakers }: ToolShardProps) {
 
         <Tool
           on={prefs.railOpen}
-          onToggle={() => update({ railOpen: !prefs.railOpen })}
+          onToggle={onToggleRail}
           label="目次"
           hint="目次：课程地图从左侧滑入 / 滑出"
         >

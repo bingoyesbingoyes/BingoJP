@@ -17,6 +17,12 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# 朗读这一块（reqwest / base64 / tokio）**只在桌面**编：Android 上既不接 VOICEVOX，
+# 也就没必要把 rustls / ring 拖进 APK——那是几 MB 的 .so 与几分钟的交叉编译。
+# 判据用 target_os 而不是 tauri 的 desktop/mobile：Tauri 的 mobile 也含 iOS，
+# 而 iOS 那边真要接朗读时，走的是系统 AVSpeechSynthesizer，同样不经过 reqwest。
+[target.'cfg(not(target_os = "android"))'.dependencies]
 # 朗读转发：本机 VOICEVOX 是 HTTP 服务。rustls 而不是 native-tls，
 # 省掉 Windows 上的 OpenSSL 依赖（与主项目同一套选型）。
 reqwest = { version = "0.12", default-features = false, features = [

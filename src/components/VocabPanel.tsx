@@ -7,11 +7,13 @@
  *
  *  一行两个按钮（不是按钮套按钮）：左键朗读、右侧勾选「已记住」。
  *  勾选在 hover 时才露出来，平时不抢视线；右键仍作为加速器保留。
+ *  **不接朗读的壳里（Android）左边那半不是按钮**：同一行、同一套样式，只是点不动
+ *  （见 SpeakRow）。右侧那枚勾选留着——那不是朗读，是「已记住」。
  *
  *  注音（振り仮名）：读音以 `<ruby>` 压在**该汉字正上方**，不做「单词／假名／中文」
  *  三列——右边的注音永远在单词上方，中文再靠最右。 */
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Blossom } from "./Seal";
 import { Segments } from "./Segments";
 import { useMemorized, wordKey } from "../features/memorized";
@@ -24,7 +26,7 @@ interface VocabPanelProps {
   /** 当前课。页头那枚小牌要写「第 N 単元・第 M 課」，单元号在课上。 */
   lesson: Lesson;
   prefs: Prefs;
-  speech: Pick<SpeechControls, "playing" | "pending" | "speak">;
+  speech: Pick<SpeechControls, "enabled" | "playing" | "pending" | "speak">;
 }
 
 export function VocabPanel({ open, vocab, lesson, prefs, speech }: VocabPanelProps) {
@@ -84,11 +86,10 @@ export function VocabPanel({ open, vocab, lesson, prefs, speech }: VocabPanelPro
                     toggle(wordKey(vocab.id, word));
                   }}
                 >
-                  <button
-                    type="button"
-                    className="vrow__speak"
-                    onClick={() => void speech.speak(key, ttsText(word.kana))}
-                    aria-label={`${playing ? "停止朗读" : "朗读"}：${word.kana}`}
+                  <SpeakRow
+                    speakable={speech.enabled}
+                    label={`${playing ? "停止朗读" : "朗读"}：${word.kana}`}
+                    onActivate={() => void speech.speak(key, ttsText(word.kana))}
                   >
                     {/* 朗读中的朱梅：压在行首，绝对定位，不占布局 */}
                     {playing || pending ? (
@@ -101,7 +102,7 @@ export function VocabPanel({ open, vocab, lesson, prefs, speech }: VocabPanelPro
                       <Segments segs={word.word} reading={prefs.showReading} />
                     </span>
                     <span className="vrow__zh">{word.zh}</span>
-                  </button>
+                  </SpeakRow>
 
                   <button
                     type="button"
@@ -130,6 +131,32 @@ export function VocabPanel({ open, vocab, lesson, prefs, speech }: VocabPanelPro
  */
 function ttsText(kana: string): string {
   return kana.split(/[∕/]/)[0]?.trim() || kana;
+}
+
+interface SpeakRowProps {
+  /** 能不能点读。不能时出静态文字（同一行、同一套 class）。 */
+  speakable: boolean;
+  label: string;
+  onActivate: () => void;
+  children: ReactNode;
+}
+
+/** 词条那一行的左半。两种形态共用 `.vrow__speak` 那套排版（日语靠左、中文靠右）：
+ *
+ *    · 能读（桌面）→ `<button>`，整行都是朗读的命中区；
+ *    · 不能读（Android）→ `<div>`，一模一样的行，只是点不动。
+ *
+ *  与 ReaderView 的 LineShell 同一个道理：换掉外壳而不是摘掉 onClick，
+ *  读屏才不会把它报成一枚按下去不出声的按钮。
+ */
+function SpeakRow({ speakable, label, onActivate, children }: SpeakRowProps) {
+  if (!speakable) return <div className="vrow__speak">{children}</div>;
+
+  return (
+    <button type="button" className="vrow__speak" onClick={onActivate} aria-label={label}>
+      {children}
+    </button>
+  );
 }
 
 /** 「已记住」的勾 */

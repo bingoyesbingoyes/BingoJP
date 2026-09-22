@@ -14,9 +14,14 @@
  *
  *    1. **缩注音**：缩到「汉字宽 + 2×--ruby-slack」放得下为止，下限 `--ruby-floor`
  *       （见 tokens.css。`じぇーシー` 正好缩到 0.30em，落在汉字两侧各 0.2em 内）。
- *    2. **挂出去**：缩完还多出来的，用负 margin 把 ruby 盒缩回汉字的宽度，注音就
+ *    2. **挂出去**：缩完还多出来的，用负 margin 把注音那一路**缩回汉字的宽度**，注音就
  *       **挂**在两侧——日文排版里本来就这么干（掛かりルビ）。挂出的量封顶在
  *       `--ruby-slack`，宁可留一点空档，也不去压邻居的注音。
+ *
+ *      **这条负 margin 写在 `<rt>` 上，不写在 `<ruby>` 上**（改动理由见 `apply`）：
+ *      写在 ruby 上会把 ruby 盒压得比它自己的内容还窄，Chrome 于是把整个 ruby 挪到
+ *      下一行——`アメリカ人` 断成「アメリカ / 人」、`東京大学` 的注音被压成两行，
+ *      整行凭空高一倍。写在 rt 上，ruby 盒永远不小于汉字宽，行不会断，注音照样挂出去。
  *
  *  量的是**字体盒**不是墨迹：canvas 按同一套 `font` 串重算一遍。汉字与假名是等宽字，
  *  字框≈字面，够用；误差由 `--ruby-slack` 兜着。
@@ -155,11 +160,28 @@ function computeFit(
   return fit;
 }
 
+/** 把量出来的两条结论写进去。
+ *
+ *  **负 margin 写给 `<rt>`，不写给 `<ruby>`**（这一条踩过）：
+ *
+ *  挂在 ruby 上，ruby 盒的**外**宽就被压得比它自己的内容还窄。Chrome 遇到这种
+ *  「盒子装不下自己」的 ruby 时不是让注音溢出去，而是把整个 ruby 挪到下一行——
+ *  于是 `アメリカ人` 断成「アメリカ / 人」（`人` 带着 `じん` 单独一行），
+ *  `東京大学` 的注音 `とうきょうだいがく` 在盒里折成两行，整行的行高翻一倍。
+ *  词表里 6 行中招，正文里凡是「注音比汉字宽」的地方都有同样的风险。
+ *
+ *  写在 rt 上：窄的是**注音那一格**，ruby 盒仍不小于汉字宽，行不会断，
+ *  注音照旧从两侧挂出去——掛かりルビ的样子一点没少。
+ *
+ *  量不出差别时要把两边都清干净（''）：元素被复用（同一行重排版）时，
+ *  上一次写下的负 margin 不能留着。 */
 function apply(ruby: HTMLElement, rt: HTMLElement, fit: Fit): void {
   const size = fit.size === null ? "" : `${fit.size.toFixed(3)}em`;
   if (rt.style.fontSize !== size) rt.style.fontSize = size;
   const margin = fit.hang > NEGLIGIBLE ? `-${fit.hang.toFixed(2)}px` : "";
-  if (ruby.style.marginInline !== margin) ruby.style.marginInline = margin;
+  if (rt.style.marginInline !== margin) rt.style.marginInline = margin;
+  // 旧版本把负 margin 写在 ruby 上：清掉，免得存档里的 DOM（或热更新）还带着它
+  if (ruby.style.marginInline) ruby.style.marginInline = "";
 }
 
 /** 把一棵子树里的 `<ruby>` 全收一遍。

@@ -59,8 +59,19 @@ function project(velocity: number, rate = 0.998): number {
   return (velocity / 1000) * (rate / (1 - rate));
 }
 
-/** 面板完全摊开时有多宽。收起时量不到（宽度是 0），所以读令牌。 */
+/** 面板完全摊开时有多宽。
+ *
+ *  **先量、量不到才读令牌**：紧凑版式（手机）里两页是整幅的抽屉，宽度＝版心宽，
+ *  与 `--rail-w` / `--coach-w`（262 / 392px，按桌面三栏量的）根本不是一回事——
+ *  照令牌算，手指拖出去的距离只有屏幕的三分之一，抽屉就会「拖一半就归位」。
+ *
+ *  量不到有两种情形：面板收起着（宽度 0）、或者节点还没挂上。两种都回落到令牌——
+ *  桌面版那 262 / 392px 本来就是这个数，所以这一改不影响桌面上的手感。 */
 function panelWidth(side: Side): number {
+  const panel = document.querySelector<HTMLElement>(`[data-panel="${PANEL_ATTR[side]}"]`);
+  const measured = panel?.getBoundingClientRect().width ?? 0;
+  if (measured > 1) return measured;
+
   const name = side === "rail" ? "--rail-w" : "--coach-w";
   const root = getComputedStyle(document.documentElement);
   const raw = root.getPropertyValue(name).trim();

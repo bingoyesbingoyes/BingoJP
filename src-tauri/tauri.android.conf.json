@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeDevCommand": "npm run dev:host"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "BingoJP 読む",
+        "resizable": true,
+        "center": true,
+        "fullscreen": false,
+        "dragDropEnabled": false,
+        "backgroundColor": "#1d2b3a",
+        "transparent": false,
+        "decorations": true
+      }
+    ]
+  }
+}

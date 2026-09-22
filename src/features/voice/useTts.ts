@@ -3,6 +3,11 @@
  *
  * 与主项目 useTts 的差别：没有自动朗读（这里是点读）；语速固定 0.9、不做双重变速；
  * 提示不自动消失，配重试按钮；音频缓存只在内存里。
+ *
+ * `enabled: false`（Android 版）＝这一整套整个不接：不探活、不拉引擎，`speak` 直接返回，
+ * `notice` 永远是 null。命令面在 Rust 那边还留着（见 src-tauri/src/voice.rs），这里只是
+ * 不去敲它——那边的实现是一句「可读的拒绝」，敲了也只是白拿一条提示。界面同时会把朗读
+ * 入口整块换成静态文字（见 ReaderView / VocabPanel 里的 speech.enabled）。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,7 +29,7 @@ function reason(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function useTts({ voiceId }: { voiceId: number | null }) {
+export function useTts({ voiceId, enabled = true }: { voiceId: number | null; enabled?: boolean }) {
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [pending, setPending] = useState<string | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
@@ -80,8 +85,9 @@ export function useTts({ voiceId }: { voiceId: number | null }) {
   // 启动就确保一次：引擎没开就自己拉起来，用户不用管。
   // quiet：启动阶段失败不弹提示，等用户真的要出声时再说。
   useEffect(() => {
+    if (!enabled) return;
     void ensureEngine(true);
-  }, [ensureEngine]);
+  }, [enabled, ensureEngine]);
 
   const stop = useCallback(() => {
     tokenRef.current += 1;
@@ -96,6 +102,9 @@ export function useTts({ voiceId }: { voiceId: number | null }) {
 
   const speak = useCallback(
     async (key: string, text: string) => {
+      // 这一版不接朗读（Android）：界面上也没有能按到这里的地方，
+      // 留住这一条只是为了让「点了也不出声」不会变成一个静默的 bug。
+      if (!enabled) return;
       if (!text.trim()) return;
 
       // 同一条正在播 → 再点就是停
@@ -156,16 +165,18 @@ export function useTts({ voiceId }: { voiceId: number | null }) {
         if (token === tokenRef.current) setPending(null);
       }
     },
-    [ensureEngine, playing, stop, voiceId],
+    [enabled, ensureEngine, playing, stop, voiceId],
   );
 
   const probe = useCallback(
-    () => ensureEngine().then((list) => list !== null),
-    [ensureEngine],
+    () => (enabled ? ensureEngine().then((list) => list !== null) : Promise.resolve(false)),
+    [enabled, ensureEngine],
   );
   const dismiss = useCallback(() => setNotice(null), []);
 
   return {
+    /** 这一版接不接朗读。界面按它决定句子是按钮还是静态文字。 */
+    enabled,
     speakers,
     pending,
     playing,

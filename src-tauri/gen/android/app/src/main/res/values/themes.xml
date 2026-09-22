@@ -1,0 +1,18 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 基础主题。两处与模板不同，都是为这本读物定的：
+
+         1. **LIGHT 而不是 DayNight**。这一版只有一套配色（米白纸面，见
+            src/styles/tokens.css），day/night 两套只会让系统栏与窗口底色
+            跟着系统翻转——夜里翻成深底，纸上那几条边就不见了。
+
+         2. windowBackground = 夜色。Activity 是 edge-to-edge（targetSdk 35+
+            强制如此），系统栏那两条由窗口底色垫底，铺夜色才和正文四周的
+            「纸外的夜色」连成一片（见 MainActivity 里的安全区处理）。 -->
+    <style name="Theme.bingojp" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowBackground">@color/night</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+    </style>
+</resources>

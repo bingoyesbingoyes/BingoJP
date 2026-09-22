@@ -1,0 +1,13 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 与 values/themes.xml 同一套（只是同一个主题在夜间资源目录里再声明一次）。
+         为什么不删掉这一份：values-night 一旦缺了 Theme.bingojp，夜间模式下会
+         回落到模板的 DayNight 主题——系统栏的字会翻成深色，落在夜色上就看不见了。
+         两处内容必须一致：这一版**只有一套浅色配色**。 -->
+    <style name="Theme.bingojp" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowBackground">@color/night</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+    </style>
+</resources>

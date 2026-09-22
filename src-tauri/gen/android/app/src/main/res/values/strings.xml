@@ -1,0 +1,6 @@
+<resources>
+    <!-- 桌面版的标题是「BingoJP 読む・聴く」；Android 这一版暂不做朗读，
+         所以只写「読む」。桌面上这一串是窗口标题，手机上它是应用名与任务列表里的名字。 -->
+    <string name="app_name">"BingoJP 読む"</string>
+    <string name="main_activity_title">"BingoJP 読む"</string>
+</resources>

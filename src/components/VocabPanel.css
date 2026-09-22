@@ -298,7 +298,7 @@
 
 /* 词表比正文更密，注音再收小半档 */
 .vrow__ja rt {
-  color: var(--ink-2);
+  color: var(--rt-color);
   font-size: var(--rt-scale-tight);
   line-height: 1.1;
   letter-spacing: 0.04em;

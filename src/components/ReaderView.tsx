@@ -1,6 +1,10 @@
 /** 中间主区：当前课的课文。三节按顺序渲染；每句是一个按钮，点一下朗读、再点停。
  *  朗读文本＝`ja` 拼起来的基础文本（抽取时已剥掉句首说话人，全角空格原样保留）。
  *
+ *  **不接朗读的壳里（Android）句子不是按钮**：同一套 class、同一套 data-*、同一条入场
+ *  动画，只是换成一段静态文字——版面一个像素都不差，但没有一枚按下去不出声的按钮。
+ *  见 SentenceLine 的 LineShell。
+ *
  *  版面上有四条纪律：
  *
  *  1. **标题不注音、不翻译**。卷头的「第 N 課　…」是标题，不是正文，
@@ -16,7 +20,7 @@
  *     说话人（Ａ／李）**回退到标题那一列**——稿子上「Ａ　田中：」的 Ａ 就顶在行首。
  */
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Blossom } from "./Seal";
 import { Segments, JaText } from "./Segments";
 import { segText } from "../features/data";
@@ -150,15 +154,14 @@ function SentenceLine({
 
   return (
     <li>
-      <button
-        type="button"
-        className="line"
-        data-playing={playing || undefined}
-        data-pending={pending || undefined}
+      <LineShell
+        speakable={speech.enabled}
+        label={`${playing ? "停止朗读" : "朗读"}：${text}`}
+        onActivate={() => void speech.speak(key, text)}
+        playing={playing}
+        pending={pending}
         /* --i 给逐行入场动画（每句错开 18ms） */
         style={{ "--i": String(Math.min(sentenceIndex, 12)) } as CSSProperties}
-        onClick={() => void speech.speak(key, text)}
-        aria-label={`${playing ? "停止朗读" : "朗读"}：${text}`}
       >
         {/* 朗读中的记号：稿子的三态里没有「播放中」，所以这里用**同一套设计元素**
             里最轻的一件——行首一朵朱梅，压在文字外的缩进里，不占布局。 */}
@@ -186,7 +189,52 @@ function SentenceLine({
             {sentence.zh}
           </span>
         </span>
-      </button>
+      </LineShell>
     </li>
+  );
+}
+
+interface LineShellProps {
+  /** 能不能点读。不能时出静态文字（同一个壳、同一套 class）。 */
+  speakable: boolean;
+  label: string;
+  onActivate: () => void;
+  playing: boolean;
+  pending: boolean;
+  style: CSSProperties;
+  children: ReactNode;
+}
+
+/** 句子的外壳。两种形态共用同一条「行」的样式与状态属性：
+ *
+ *    · 能读（桌面）→ `<button className="line">`，点一下朗读、再点停；
+ *    · 不能读（Android）→ `<div className="line">`，一模一样的一行，只是点不动。
+ *
+ *  为什么不沿用按钮、只把 onClick 摘掉：读屏会照旧把它报成按钮（「朗读：…」），
+ *  键盘也能聚焦到一枚按下去什么都不会发生的钮上。外壳换掉，语义才跟着干净。
+ *  样式这边不吃亏：`.line` 的排版本来就与元素类型无关（ReaderView.css 里没有
+ *  `button.line` 这类选择器）。 */
+function LineShell({
+  speakable,
+  label,
+  onActivate,
+  playing,
+  pending,
+  style,
+  children,
+}: LineShellProps) {
+  const shared = {
+    className: "line",
+    "data-playing": playing || undefined,
+    "data-pending": pending || undefined,
+    style,
+  };
+
+  if (!speakable) return <div {...shared}>{children}</div>;
+
+  return (
+    <button type="button" {...shared} onClick={onActivate} aria-label={label}>
+      {children}
+    </button>
   );
 }

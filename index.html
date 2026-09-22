@@ -4,9 +4,14 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <!-- 桌面应用，不铺手机安全区；viewport 保持最简即可。 -->
+    <!-- 手机上的安全区（状态栏 / 手势条 / 刘海）**不在这里铺**：Android 的 WebView 对
+         `env(safe-area-inset-*)` 一直是「看情况」（要不要报、报哪几条，随系统版本与
+         是否 edge-to-edge 变），所以那一件事交给原生那层做——
+         gen/android 的 MainActivity 把 systemBars + 刘海的高度作为内边距加在 content 上。
+         viewport 因此保持最简：不加 viewport-fit=cover，免得两头各让一次位。 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- 异形窗：窗口四周透明，纸浮在桌面上；这条 theme-color 只是预览时的兜底 -->
+    <!-- 主题色：桌面版是米白（纸），Android 版纸外那层夜色由 Activity 的
+         windowBackground 给（gen/android/.../values/colors.xml），这里只兜预览。 -->
     <meta name="theme-color" content="#ebe2d3" />
     <title>BingoJP 読む・聴く</title>
   </head>

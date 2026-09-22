@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 模板留下的几枚（本项目未引用，留着不动别人的东西） -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- 设计稿上「纸之外」那一层夜色（＝ src/styles/tokens.css 里那枚 night 令牌）。
+         桌面版这里透出来的是用户的桌面，手机上铺不出来，于是铺稿子的演示底：
+         卷面四周的撕口有了衬底，纸重新变成「浮在夜色上的一张纸」。
+
+         两个用处：
+           · Activity 的 windowBackground —— 系统栏（状态栏 / 手势条）那两条由它垫底
+             （正文已经被 MainActivity 让进安全区，并不压在栏下）；
+           · WebView 自己的底色 —— CSS 落地之前先铺上，免得开头闪一下白。 -->
+    <color name="night">#FF1D2B3A</color>
+</resources>

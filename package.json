@@ -6,11 +6,16 @@
   "description": "BingoJP：可点读的离线日语读物，《新版中日交流标准日本语》初级上下册。Offline tap-to-listen reader for the New Standard Japanese beginner textbooks.",
   "scripts": {
     "dev": "vite",
+    "dev:host": "vite --host",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "app": "tauri dev",
     "app:build": "tauri build",
+    "android": "tauri android build --apk --target aarch64",
+    "android:debug": "tauri android build --debug --apk --target aarch64",
+    "android:dev": "tauri android dev",
+    "android:init": "tauri android init",
     "data": "python scripts/extract_epub.py --write",
     "check": "python scripts/check_data.py"
   },

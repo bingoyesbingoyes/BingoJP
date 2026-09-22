@@ -1,0 +1,24 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+key.properties
+keystore.properties
+# 发布签名的密钥（本仓库加的：app/build.gradle.kts 读 keystore.properties 签名）。
+# 密钥与口令都不进库——每台机器自己生成一份，README 的「Android」一节有命令。
+*.jks
+*.keystore
+
+/.tauri
+/tauri.settings.gradle

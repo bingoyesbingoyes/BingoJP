@@ -80,6 +80,9 @@ export type TtsHealth = "unknown" | "starting" | "ready" | "offline";
  *  只暴露「谁在播 / 谁在合成 / 出没出错」——不再有播放进度：
  *  界面里不收进度条。 */
 export interface SpeechControls {
+  /** 这一版接不接朗读。false（Android）＝界面把朗读入口整块换成静态文字：
+   *  句子不是按钮、词条也没有朗读键——一枚按下去不出声的按钮不如没有。 */
+  enabled: boolean;
   /** 正在播的 key（句子/词条各有一套 key） */
   playing: string | null;
   /** 正在合成的 key */
