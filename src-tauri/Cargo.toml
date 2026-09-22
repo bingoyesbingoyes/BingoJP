@@ -1,7 +1,7 @@
 [package]
 name = "bingojp"
 version = "0.1.0"
-description = "把《新版中日交流标准日本语》初级上下册变成能点着听、能随手查词的读物"
+description = "BingoJP：可点读的离线日语读物，《新版中日交流标准日本语》初级上下册。Offline tap-to-listen reader for the New Standard Japanese beginner textbooks."
 authors = ["bingoyes"]
 edition = "2021"
 

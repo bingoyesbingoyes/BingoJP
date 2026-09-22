@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "BingoJP：《新版中日交流标准日本语》初级上下册有声读物。逐句点读（本机 VOICEVOX）、每课生词表、可开关中文译文。",
+  "description": "BingoJP：可点读的离线日语读物，《新版中日交流标准日本语》初级上下册。Offline tap-to-listen reader for the New Standard Japanese beginner textbooks.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
